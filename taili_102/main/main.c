@@ -97,6 +97,7 @@ extern void ncolor_display(uint16_t index,unsigned char pic_data4);
 //end
 
 #define my_tag "desk_calender"
+#define timer_tag "timer"
 #define sector_size 4096
 struct timeval stime;
 struct tm *p;
@@ -147,9 +148,9 @@ void app_main()
 		ESP_LOGW(my_tag,"mac=%x",device_info[8+i]);
 	}
 
-	 spi_flash_erase_sector(composite_picture_page);
-	 spi_flash_erase_sector(info_page+1);
-	 spi_flash_erase_sector(info_page);
+//	 spi_flash_erase_sector(composite_picture_page);
+//	 spi_flash_erase_sector(info_page+1);
+//	 spi_flash_erase_sector(info_page);
 
 //	ESP_LOGW(my_tag, "e_init");
 //	e_init();
@@ -159,11 +160,21 @@ void app_main()
 	ESP_LOGW(my_tag, "read_write_init");
 	read_write_init();
 
-//	ESP_LOGW(my_tag,"wifi init_sta");
-//	wifi_init_sta();
-//
-//	ESP_LOGW(my_tag,"gattserver(ble) init");
-//	GattServers_Init();
+	analysis_data();
+
+	ESP_LOGW(my_tag,"Get device information");
+	getdeviceinfo();
+
+	ESP_LOGW(my_tag,"gattserver(ble) init");
+	GattServers_Init();
+
+	ESP_LOGW(my_tag,"esp_ble_gap_config_adv_data");
+	esp_ble_gap_config_adv_data(&adv_data);
+
+	ESP_LOGW(my_tag,"wifi init_sta");
+	wifi_init_sta();
+
+
 
 //	ESP_LOGW(my_tag,"init timer");
 //	Timer_Config();
@@ -227,35 +238,34 @@ void app_main()
 //				ESP_LOGW(my_tag,"not sleep");
 //				break;
 //		}
-		search_pic(esp_sleep_get_wakeup_cause());
-//		*/
-//		switch (esp_sleep_get_wakeup_cause())
-//		{
-//			case ESP_SLEEP_WAKEUP_EXT1:
-//				ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_EXT1(3) = %d",esp_sleep_get_wakeup_cause());
-//				ESP_LOGW(my_tag,"wakeup by search next page ");
-//				search_pic(ESP_SLEEP_WAKEUP_EXT1);
-//				break;
-//			case ESP_SLEEP_WAKEUP_EXT0:
-//				ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_EXT0(2) = %d",esp_sleep_get_wakeup_cause());
-//				ESP_LOGW(my_tag,"wakeup by search prev page");
-//				search_pic(ESP_SLEEP_WAKEUP_TIMER);
-//				break;
-//			case ESP_SLEEP_WAKEUP_TIMER:
-//				ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_TIMER(0) = %d",esp_sleep_get_wakeup_cause());
-//				ESP_LOGW(my_tag,"wakup by timer");
-//				search_pic(ESP_SLEEP_WAKEUP_TIMER);
-//				break;
-//			case ESP_SLEEP_WAKEUP_UNDEFINED:
-//				ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_UNDEFINED(0) = %d",esp_sleep_get_wakeup_cause());
-//				ESP_LOGW(my_tag,"wakup by manual update");
-//				search_pic(ESP_SLEEP_WAKEUP_UNDEFINED);
-//				break;
-//			default:
-//				ESP_LOGW(my_tag,"not sleep");
-//				break;
-//		}
-//		/*
+
+
+		switch (esp_sleep_get_wakeup_cause())
+		{
+			case ESP_SLEEP_WAKEUP_EXT1:
+				ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_EXT1(3)= %d",esp_sleep_get_wakeup_cause());
+				ESP_LOGW(my_tag,"wakeup by search next page ");
+				search_pic(ESP_SLEEP_WAKEUP_EXT1);//3
+				break;
+			case ESP_SLEEP_WAKEUP_EXT0:
+				ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_EXT0(2) = %d",esp_sleep_get_wakeup_cause());
+				ESP_LOGW(my_tag,"wakeup by search prev page");
+				search_pic(ESP_SLEEP_WAKEUP_TIMER);//2
+				break;
+			case ESP_SLEEP_WAKEUP_TIMER:
+				ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_TIMER(4) = %d",esp_sleep_get_wakeup_cause());
+				ESP_LOGW(my_tag,"wakup by timer auto_update");//4
+				break;
+			case ESP_SLEEP_WAKEUP_UNDEFINED:
+				ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_UNDEFINE(0) = %d",esp_sleep_get_wakeup_cause());
+				ESP_LOGW(my_tag,"wakup by manual update");//0
+				search_pic(ESP_SLEEP_WAKEUP_UNDEFINED);
+				break;
+			default:
+				ESP_LOGW(my_tag,"not sleep");
+				break;
+		}
+
 		esp_sleep_enable_ext0_wakeup(0ULL<<0x00, 0);
 		esp_sleep_enable_ext1_wakeup(1ULL<<0x19, 0);
 	}
@@ -344,12 +354,7 @@ void read_write_init()
 	spi_flash_read(info_page*sector_size,&data,sizeof(data));
 	if(data.check_head[0]==0x55&&data.check_head[1]==0x56&&data.check_tail[0]==0x55&&data.check_tail[1]==0x56)
 	{
-		 ESP_LOGW(my_tag, "Interpreting data");
-		 analysis_data();
-		 ESP_LOGW(my_tag,"Get device information");
-		 getdeviceinfo();
-		 ESP_LOGW(my_tag,"esp_ble_gap_config_adv_data");
-//		 esp_ble_gap_config_adv_data(&adv_data);
+		 ESP_LOGW(my_tag, "Start Interpreting data");
 	}
 	else
 	{
@@ -378,13 +383,13 @@ void init_default_data()
 	default_data.check_head[1]=0x56;
 	default_data.pic_number=0;
 	default_data.low_power=0;
-	strcpy(default_data.pic_name,"moding");
+	strcpy(default_data.pic_name,"20210101.bin");
 	strcpy(default_data.wifi_ssid,default_wifi_ssid);
 	strcpy(default_data.wifi_pssd,default_wifi_pssd);
-	strcpy(default_data.server_add_get_down_pic,"http://aink.net/devices/download/pic/");
-	strcpy(default_data.server_add_tell_down_ok,"http://aink.net/devices/finished/pic/");
-	strcpy(default_data.server_add_tell_dele_ok,"http://aink.net/devices/deleted/pic/");
-	strcpy(default_data.server_add_to_downlo_pic,"http://aink.net/devices/resources/");
+	strcpy(default_data.server_add_get_down_pic,"https://aink.net/devices/download/pic/");
+	strcpy(default_data.server_add_tell_down_ok,"https://aink.net/devices/finished/pic/");
+	strcpy(default_data.server_add_tell_dele_ok,"https://aink.net/devices/deleted/pic/");
+	strcpy(default_data.server_add_to_downlo_pic,"https://aink.net/devices/resources/");
 	default_data.network_wrong=0;
 	default_data.config_wifi=0;
 	default_data.check_tail[0]=0x55;
@@ -439,46 +444,76 @@ void search_pic(esp_sleep_source_t wakeup_cause)
 {
 	unsigned char i;
 	char temp_name[20];
-	analysis_data();
 	for (i = 0; i < current_data.pic_number; i++)
 	{
 		spi_flash_read(info_pic_name + i * 20, temp_name, 20);
 		if (strcmp((char *)temp_name, current_data.pic_name) == 0)
 		{
-			if(wakeup_cause==ESP_SLEEP_WAKEUP_EXT0)
-			{
-				ESP_LOGW(my_tag,"Search next prev success");
-				ESP_LOGW(my_tag,"now ,display it");
-				display_picture(i,picture_page);
-				check_wifi_httpdowload_pic(current_data.pic_name,1);//下载上上一页
-				break;
-			}
-			else if(wakeup_cause==ESP_SLEEP_WAKEUP_EXT1||wakeup_cause==ESP_SLEEP_WAKEUP_TIMER)
-			{
-				if(i+1>current_data.pic_number)
-				{
-					ESP_LOGW(my_tag,"Search  next page  failed");
-					ESP_LOGW(my_tag,"now , download next page ");
-					check_wifi_httpdowload_pic(current_data.pic_name,2);//下载此页的下一页并显示
-					ESP_LOGW(my_tag,"now ,display it from download");
-					display_picture(i+1,picture_page);
-				}
-				else
-				{
-					spi_flash_read(info_pic_name + (i+1) * 20, temp_name, 20);
-					ESP_LOGW(my_tag,"Search next page success");
-					ESP_LOGW(my_tag,"now ,display it from flash");
-					display_picture(i,picture_page);
-					check_wifi_httpdowload_pic(temp_name,0);//下载此页的下一页但不显示
-					break;
-				}
-			}
+			break;
 		}
 	}
-	//not find pic
-	if(i==current_data.pic_number)
+	switch (esp_sleep_get_wakeup_cause())
 	{
-		check_wifi_httpdowload_pic(current_data.pic_name,1);
+		case ESP_SLEEP_WAKEUP_EXT1:
+			ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_EXT1(3)= %d",esp_sleep_get_wakeup_cause());
+			ESP_LOGW(my_tag,"wakeup by search next page ");
+			if(i+1<current_data.pic_number)
+			{
+				ESP_LOGW(my_tag,"Search next page success");
+				ESP_LOGW(my_tag,"now ,display it");
+				spi_flash_read(info_pic_name + (i+1) * 20, temp_name, 20);
+				display_picture(i+1,picture_page);
+				check_wifi_httpdowload_pic(temp_name,2);//下载此页(temp_name)的下一页但不显示
+			}
+			else
+			{
+				ESP_LOGW(my_tag,"Search  next page  failed");
+				ESP_LOGW(my_tag,"now , download next page ");
+				check_wifi_httpdowload_pic(current_data.pic_name,2);//下载此页的下一页并显示
+			}
+			break;
+		case ESP_SLEEP_WAKEUP_EXT0:
+			ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_EXT0(2) = %d",esp_sleep_get_wakeup_cause());
+			ESP_LOGW(my_tag,"wakeup by search prev page");
+			if(i>0)
+			{
+				ESP_LOGW(my_tag,"Search prev  page success");
+				ESP_LOGW(my_tag,"now ,display it");
+				display_picture(i-1,picture_page);
+				spi_flash_read(info_pic_name + (i-1) * 20, temp_name, 20);
+				check_wifi_httpdowload_pic(temp_name,1);//下载此页(temp_name)的上一页但不显示
+			}
+			else
+			{
+				check_wifi_httpdowload_pic(current_data.pic_name,1);//下载上一页并显示
+			}
+			break;
+		case ESP_SLEEP_WAKEUP_TIMER:
+			ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_TIMER(4) = %d",esp_sleep_get_wakeup_cause());
+			ESP_LOGW(my_tag,"wakup by timer auto_update");//4
+			if(i+1<current_data.pic_number)
+			{
+				ESP_LOGW(my_tag,"Search next page success");
+				ESP_LOGW(my_tag,"now ,display it");
+				spi_flash_read(info_pic_name + (i+1) * 20, temp_name, 20);
+				display_picture(i+1,picture_page);
+				check_wifi_httpdowload_pic(temp_name,0);//下载此页(temp_name)的下一页但显示
+			}
+			else
+			{
+				ESP_LOGW(my_tag,"Search  next page  failed");
+				ESP_LOGW(my_tag,"now , download next page ");
+				check_wifi_httpdowload_pic(current_data.pic_name,0);//下载此页的下一页并显示
+			}
+			break;
+		case ESP_SLEEP_WAKEUP_UNDEFINED:
+			ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_UNDEFINE(0) = %d",esp_sleep_get_wakeup_cause());
+			ESP_LOGW(my_tag,"wakup by manual update");//0
+			check_wifi_httpdowload_pic(current_data.pic_name,3);//自动更新
+			break;
+		default:
+			ESP_LOGW(my_tag,"not sleep");
+			break;
 	}
 }
 
@@ -534,13 +569,6 @@ void check_wifi_httpdowload_pic(char pic_name[20],int wakeup_cause)
 	ESP_LOGW(my_tag,"isconnected=%d",isconnected);
 	if(isconnected)
 	{
-//		uint8_t mac[6];
-//		char MAC[6];
-//		esp_read_mac(mac, ESP_MAC_BT);
-//		for(int i=0;i<6;i++)
-//		{
-//			MAC[i]=mac[i];
-//		}
 		for(unsigned char i=0;i<50;i++)
 		{
 			download_url[i]=current_data.server_add_get_down_pic[i];
@@ -574,12 +602,11 @@ void check_wifi_httpdowload_pic(char pic_name[20],int wakeup_cause)
 		char temp_time_stamp[i];
 		inttostring(current_data.time_stamp,temp_time_stamp);
 		strcat(download_url,temp_time_stamp);
-		ESP_LOGW(my_tag,"try to get download_picture_name");
+		ESP_LOGW(my_tag,"Request server(%s) try to get download_picture_name",download_url);
 		http_test_task(download_url);
 	}
 	else
 	{
-//		esp_timer_stop(periodic_timer);
 		if(strcmp(current_data.wifi_ssid,default_wifi_ssid)==0&&strcmp(current_data.wifi_pssd,default_wifi_pssd)==0)
 		{
 //			display_picture(2,low_network_wifi_picture_page);
@@ -587,25 +614,18 @@ void check_wifi_httpdowload_pic(char pic_name[20],int wakeup_cause)
 			wifi_config_page=1;
 			getdeviceinfo();
 			esp_ble_gap_config_adv_data(&adv_data);
-			ESP_LOGW(my_tag,"wifi init_sta");
-			wifi_init_sta();
-
-			ESP_LOGW(my_tag,"gattserver(ble) init");
-			GattServers_Init();
-			ESP_LOGW(my_tag,"init timer");
-			Timer_Config();
 		}
 		else
 		{
 //			display_picture(1,low_network_wifi_picture_page);
 			ncolor_display(0,0x33);//blue
 		}
-		esp_timer_start_periodic(periodic_timer, 15*1000 * 1000);
+		esp_timer_start_periodic(periodic_timer, 15*1000 * 1000);//三分钟后睡眠
 	}
 }
 
-void cJSON_data()
 //void cJSON_data(char *json_str)
+void cJSON_data()
 {
 //	{\"picname\":\"20201222.bin\"},{\"picname\":\"20201223.bin\"},{\"picname\":\"20201224.bin\"}
 	struct timeval stime;

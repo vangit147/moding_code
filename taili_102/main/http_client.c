@@ -17,6 +17,8 @@
 #include "cJSON.h"
 #include "esp_sleep.h"
 
+
+char wakeup_cause=-1;
 extern struct timeval stime;
 extern struct tm *p;
 extern time_t time_now;
@@ -78,16 +80,22 @@ int http_test_task(char *dpwn_url)
 	int picture_page_index;
 	unsigned char flag=0;
     char *buffer = malloc(MAX_HTTP_RECV_BUFFER + 1);
+
     if (buffer == NULL)
     {
         ESP_LOGE(TAG, "Cannot malloc http receive buffer");
         return 0;
     }
 
+    analysis_data();
+    spi_flash_read(info_page*4096,&current_data,sizeof(current_data));
+
     esp_http_client_config_t config = {
     	.url = dpwn_url,
         .event_handler = _http_event_handler,
     };
+
+    wakeup_cause=*(strstr(config.url,"action")+7);
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     esp_err_t err;
@@ -103,7 +111,7 @@ int http_test_task(char *dpwn_url)
 				ESP_LOGW(my_tag, "Failed (tried 3 times) to open HTTP connection");
 				free(buffer);
 				display_picture(1,low_network_wifi_picture_page);
-				ESP_LOGW(my_tag,"go to sleep");
+				ESP_LOGW(my_tag,"sleep");
 				esp_deep_sleep_start();
 				return 0;
 			}
@@ -118,9 +126,12 @@ int http_test_task(char *dpwn_url)
     int content_length = esp_http_client_fetch_headers(client);
     int total_read_len = 0, read_len;
     data_read_size = esp_http_client_get_content_length(client);
+
+
     ESP_LOGE(TAG, "start_earse flash size");
     spi_flash_erase_range((picture_page + picture_cap * current_data.pic_number) * 4096, picture_cap * 4096); //Çå³ýflashÄÚ´æ
     ESP_LOGE(TAG, "earse flash end");
+
     ESP_LOGE(TAG, "start_download");
     ESP_LOGW(my_tag,"content_length=%d",content_length);
     ESP_LOGW(my_tag,"data_read_size=%d",data_read_size);
@@ -133,13 +144,20 @@ int http_test_task(char *dpwn_url)
         }
         buffer[read_len] = 0;
         ESP_LOGD(TAG, "read_len = %d\n", read_len);
+        //analysis data from buffer by cJSON
+	   unsigned char len_url=strlen(current_data.server_add_to_downlo_pic);
+	   char download_temp[len_url];
+	   strncpy(download_temp,config.url,len_url);
+	   if(strcmp(download_temp,current_data.server_add_to_downlo_pic)!=0&&bytes_read==0)
+	   {
+		   cJSON_data(buffer);
+	   }
     }
     else
     {
-    	analysis_data();
     	memset(picname,0,20);
     	memcpy(picname,&config.url[strlen(current_data.server_add_to_downlo_pic)-1],12);
-    	picture_page_index=low_network_wifi_picture_page;
+
     	if(strcmp(picname,low_power_picname)==0)
     	{
     		picture_index=0;
@@ -155,12 +173,9 @@ int http_test_task(char *dpwn_url)
     		picture_index=2;
     		flag++;
     	}
+
     	if(flag==0)
     	{
-    		memset(picname,0,20);
-			memcpy(picname,&config.url[strlen(current_data.server_add_to_downlo_pic)-1],8);
-			picture_page_index=picture_page;
-			picture_index=current_data.pic_number;
 			unsigned char i;
 			for (i = 0; i < current_data.pic_number; i++)
 			{
@@ -172,11 +187,21 @@ int http_test_task(char *dpwn_url)
 					break;
 				}
 			}
-			spi_flash_read(info_page*4096,&current_data,sizeof(current_data));
-			sf_WriteBuffer((uint8_t *)picname, info_pic_name + current_data.pic_number * 20, 20);
-			current_data.pic_number++;
-			spi_flash_write(info_page*4096,&current_data,sizeof(current_data));
+			if(i==current_data.pic_number)
+			{
+				picture_index=current_data.pic_number;
+				sf_WriteBuffer((uint8_t *)picname, info_pic_name + current_data.pic_number * 20, 20);
+				current_data.pic_number++;
+				spi_flash_write(info_page*4096,&current_data,sizeof(current_data));
+			}
+			picture_page_index=picture_page;
     	}
+    	else
+    	{
+        	picture_page_index=low_network_wifi_picture_page;
+    		sf_WriteBuffer((uint8_t *)picname, info_pic_name_for_err + picture_index * 20, 20);
+    	}
+
         memset(buffer,0,MAX_HTTP_RECV_BUFFER+1);
         while (data_read_size > 0)
         {
@@ -190,24 +215,30 @@ int http_test_task(char *dpwn_url)
             bytes_read++;
             data_read_size -= read_len;
         }
-//        int date=(1900+p->tm_year)*10000+(1+p->tm_mon)*100+(p->tm_mday);
-//        char time_string[20];
-//        inttostring(date,time_string);
-//        if(strcmp(picname,time_string)==0)
-//        {
-//        	display_picture(current_data.pic_number++,picture_page);
-//        }
 
+        p=localtime(&time_now);
+        int tm_year=p->tm_year+1900;
+		int tm_mon=p->tm_mon+1;
+		int tm_mday=p->tm_mday;
+		char time_string[20];
+		int date=tm_year*10000+tm_mon*100+tm_mday;
+        if(wakeup_cause==1&&tm_mon==1)
+        {
+			date=(tm_year-1)*10000+12*100+tm_mday;
+
+        }
+        if(wakeup_cause==2&&tm_mon==12)
+        {
+        	date=tm_year*10000+1*100+tm_mday;
+        }
+        inttostring(date,time_string);
+		strcat(time_string,".bin");
+		if(strcmp(picname,time_string)==0)
+		{
+			display_picture(picture_index,picture_page_index);
+		}
     }
 
-    //analysis data from buffer by cJSON
-    unsigned char len_url=strlen(current_data.server_add_to_downlo_pic);
-    char download_temp[len_url];
-    strncpy(download_temp,config.url,len_url);
-    if(strcmp(download_temp,current_data.server_add_to_downlo_pic)!=0&&bytes_read==0)
-	{
-    	cJSON_data(buffer);
-	}
 
     ESP_LOGE(TAG, "write end");
     ESP_LOGI(TAG, "read_times = %d", bytes_read);
