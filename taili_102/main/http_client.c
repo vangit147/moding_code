@@ -16,7 +16,7 @@
 #include "data_flash.h"
 #include "cJSON.h"
 #include "esp_sleep.h"
-
+#include "time.h"
 
 char wakeup_cause=-1;
 extern struct timeval stime;
@@ -27,7 +27,8 @@ extern int time_count;
 extern FILE *writefile;
 extern unsigned char picture_num; //Í¼Æ¬ÊýÁ¿
 extern void cJSON_data(char *json_str);
-extern void display_picture(int display_index,int picture_page_index);
+extern void display_picture(char *buffer);
+extern void display_picture_temp(int display_index,int picture_page_index);
 static const char *TAG = "http_client";
 #define my_tag "desk_calender"
 #define MAX_HTTP_RECV_BUFFER 4096
@@ -110,7 +111,7 @@ int http_test_task(char *dpwn_url)
 			{
 				ESP_LOGW(my_tag, "Failed (tried 3 times) to open HTTP connection");
 				free(buffer);
-				display_picture(1,low_network_wifi_picture_page);
+				display_picture_temp(1,low_network_wifi_picture_page);
 				ESP_LOGW(my_tag,"sleep");
 				esp_deep_sleep_start();
 				return 0;
@@ -176,24 +177,24 @@ int http_test_task(char *dpwn_url)
 
     	if(flag==0)
     	{
-			unsigned char i;
-			for (i = 0; i < current_data.pic_number; i++)
-			{
-				spi_flash_read(info_pic_name + i * 20, temp_name, 20);
-				if (strcmp((char *)temp_name, current_data.pic_name) == 0)
-				{
-					ESP_LOGW(my_tag, "find same name picture");
-					picture_index = i;
-					break;
-				}
-			}
-			if(i==current_data.pic_number)
-			{
+//			unsigned char i;
+//			for (i = 0; i < current_data.pic_number; i++)
+//			{
+//				spi_flash_read(info_pic_name + i * 20, temp_name, 20);
+//				if (strcmp((char *)temp_name, current_data.pic_name) == 0)
+//				{
+//					ESP_LOGW(my_tag, "find same name picture");
+//					picture_index = i;
+//					break;
+//				}
+//			}
+//			if(i==current_data.pic_number)
+//			{
 				picture_index=current_data.pic_number;
 				sf_WriteBuffer((uint8_t *)picname, info_pic_name + current_data.pic_number * 20, 20);
 				current_data.pic_number++;
 				spi_flash_write(info_page*4096,&current_data,sizeof(current_data));
-			}
+//			}
 			picture_page_index=picture_page;
     	}
     	else
@@ -202,41 +203,65 @@ int http_test_task(char *dpwn_url)
     		sf_WriteBuffer((uint8_t *)picname, info_pic_name_for_err + picture_index * 20, 20);
     	}
 
+    	p=localtime(&time_now);
+		int tm_year=p->tm_year+1900;
+		int tm_mon=p->tm_mon+1;
+		int tm_mday=p->tm_mday;
+		char time_string[20];
+		int date=tm_year*10000+tm_mon*100+tm_mday;
+		if(wakeup_cause==1)
+		{
+			if(tm_mon==1)
+			{
+				tm_mon=12;
+				tm_year--;
+			}
+			else
+			{
+				tm_mon--;
+			}
+			tm_mday=1;
+		}
+		if(wakeup_cause==2)
+		{
+			if(tm_mon==12)
+			{
+				tm_mon=1;
+				tm_year++;
+			}
+			else
+			{
+				tm_mon++;
+			}
+			tm_mday=1;
+		}
+		date=tm_year*10000+tm_mon*100+tm_mday;
+		inttostring(date,time_string);
+		strcat(time_string,".bin");
+
         memset(buffer,0,MAX_HTTP_RECV_BUFFER+1);
         while (data_read_size > 0)
         {
             ESP_LOGE(TAG, "read %d", bytes_read);
             read_len = esp_http_client_read(client, buffer, MAX_HTTP_RECV_BUFFER);
-            spi_flash_write((picture_page_index + picture_cap * picture_index) * 4096 + bytes_read * MAX_HTTP_RECV_BUFFER, buffer, read_len);
-            if(bytes_read==37)
+            if(flag==1)
             {
-            	 spi_flash_write((picture_page_index + picture_cap * picture_index) * 4096 + bytes_read * (MAX_HTTP_RECV_BUFFER/2), buffer, read_len);
+				spi_flash_write((picture_page_index + picture_cap * picture_index) * 4096 + bytes_read * MAX_HTTP_RECV_BUFFER, buffer, read_len);
+				if(bytes_read==37)
+				{
+					 spi_flash_write((picture_page_index + picture_cap * picture_index) * 4096 + bytes_read * (MAX_HTTP_RECV_BUFFER/2), buffer, read_len);
+				}
+            }
+            else
+            {
+            	if(strcmp(picname,time_string)==0)
+				{
+					display_picture(buffer);
+				}
             }
             bytes_read++;
             data_read_size -= read_len;
         }
-
-        p=localtime(&time_now);
-        int tm_year=p->tm_year+1900;
-		int tm_mon=p->tm_mon+1;
-		int tm_mday=p->tm_mday;
-		char time_string[20];
-		int date=tm_year*10000+tm_mon*100+tm_mday;
-        if(wakeup_cause==1&&tm_mon==1)
-        {
-			date=(tm_year-1)*10000+12*100+tm_mday;
-
-        }
-        if(wakeup_cause==2&&tm_mon==12)
-        {
-        	date=tm_year*10000+1*100+tm_mday;
-        }
-        inttostring(date,time_string);
-		strcat(time_string,".bin");
-		if(strcmp(picname,time_string)==0)
-		{
-			display_picture(picture_index,picture_page_index);
-		}
     }
 
 

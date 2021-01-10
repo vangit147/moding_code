@@ -6,6 +6,7 @@ struct my_data
 	char pic_number;
 	char low_power;
 	char pic_name[20];
+	char pic_name_current[20];
 	char wifi_ssid[40];
 	char wifi_pssd[40];
 	char server_add_get_down_pic[50];

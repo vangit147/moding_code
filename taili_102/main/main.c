@@ -384,6 +384,7 @@ void init_default_data()
 	default_data.pic_number=0;
 	default_data.low_power=0;
 	strcpy(default_data.pic_name,"20210101.bin");
+	strcpy(default_data.pic_name_current,"20210101.bin");
 	strcpy(default_data.wifi_ssid,default_wifi_ssid);
 	strcpy(default_data.wifi_pssd,default_wifi_pssd);
 	strcpy(default_data.server_add_get_down_pic,"https://aink.net/devices/download/pic/");

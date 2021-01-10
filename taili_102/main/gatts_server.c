@@ -1397,7 +1397,7 @@ void GattServers_Init(void)
 //}
 void getdeviceinfo(void)
 {
-    unsigned char total;
+//    unsigned char total;
 //    spi_flash_read(info_page * 4096, &total, sizeof(unsigned char));
 //    if (total == 0xff)
 //	{

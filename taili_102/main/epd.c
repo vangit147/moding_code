@@ -19,7 +19,6 @@
 #define  COLUMN_VLAUE 640
 #define MONO 1
 #define RED  2
-uint32_t pic_index=0;
 void D_MS(int M)
 {	vTaskDelay(M / portTICK_RATE_MS);
 }
@@ -174,14 +173,15 @@ void ereLocation(void)
 	epd_read();
 }
 
-void pic_Load_Data(int display_index,int picture_page_index)
+uint32_t pic_index_temp=0;
+void pic_Load_Data_temp(int display_index,int picture_page_index)
 {
 	int len=19,i=0;
 	char buffer[sector_size];
 	int temp_total;
-	if(pic_index==76799)
+	if(pic_index_temp==76799)
 	{
-		ESP_LOGW(my_tag,"pic_index=%d",pic_index);
+		ESP_LOGW(my_tag,"pic_index=%d",pic_index_temp);
 		i=19;
 		len=38;
 	}
@@ -211,29 +211,88 @@ void pic_Load_Data(int display_index,int picture_page_index)
 		}
 		for(int j=0;j<temp_total;j++)
 		{
+			DEV_DTO(*(buffer+pic_index_temp));
+			pic_index_temp++;
+		}
+	}
+	if(pic_index_temp==153599)
+	{
+		ESP_LOGW(my_tag,"pic_index=%d",pic_index_temp);
+	}
+}
+void  pic_dis_temp(int display_index,int picture_page_index)
+{
+	pic_index_temp=0;
+	epd_lut(0);
+	ereLocation();
+	DEV_CO(0x24);//write RAM for black(0)/white (1)
+	pic_Load_Data_temp(display_index,picture_page_index);
+
+	ereLocation();
+	DEV_CO(0x26);//write RAM for red(1)/white (0)
+	pic_Load_Data_temp(display_index,picture_page_index);
+}
+void display_picture_temp(int display_index,int picture_page_index)
+{
+	pic_dis_temp(display_index,picture_page_index);
+	reflesh_disp();
+}
+
+int pic_index=0;
+int times=0;
+void pic_Load_Data(char *buffer)
+{
+	if(times==18)
+	{
+		epd_lut(0);
+		ereLocation();
+		DEV_CO(0x24);//write RAM for black(0)/white (1)
+		for(int j=0;j<3072;j++)
+		{
+			DEV_DTO(*(buffer+pic_index));
+			pic_index++;
+		}
+		ESP_LOGW(my_tag,"pic_index=%d",pic_index);
+		ereLocation();
+		DEV_CO(0x26);//write RAM for red(1)/white (0)
+		for(int j=0;j<1024;j++)
+		{
 			DEV_DTO(*(buffer+pic_index));
 			pic_index++;
 		}
 	}
-	if(pic_index==153599)
+	else
 	{
-		ESP_LOGW(my_tag,"pic_index=%d",pic_index);
+		for(int j=0;j<sizeof(buffer);j++)
+		{
+			DEV_DTO(*(buffer+pic_index));
+			pic_index++;
+		}
+	}
+	times++;
+}
+void  pic_dis(char *buffer)
+{
+	if(times<18)
+	{
+		epd_lut(0);
+		ereLocation();
+		DEV_CO(0x24);//write RAM for black(0)/white (1)
+		pic_Load_Data(buffer);
+	}
+	else if(times>19)
+	{
+		ereLocation();
+		DEV_CO(0x26);//write RAM for red(1)/white (0)
+		pic_Load_Data(buffer);
+	}
+	else
+	{
+		pic_Load_Data(buffer);
 	}
 }
-void  pic_dis(int display_index,int picture_page_index)
+void display_picture(char *buffer)
 {
-	pic_index=0;
-	epd_lut(0);
-	ereLocation();
-	DEV_CO(0x24);//write RAM for black(0)/white (1)
-	pic_Load_Data(display_index,picture_page_index);
-
-	ereLocation();
-	DEV_CO(0x26);//write RAM for red(1)/white (0)
-	pic_Load_Data(display_index,picture_page_index);
-}
-void display_picture(int display_index,int picture_page_index)
-{
-	pic_dis(display_index,picture_page_index);
+	pic_dis(buffer);
 	reflesh_disp();
 }
