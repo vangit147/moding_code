@@ -73,7 +73,6 @@ int http_test_task(char *dpwn_url)
 {
 	int data_read_size = 0, bytes_read = 0;
 	char picname[20];
-	char temp_name[20];
 	char low_power_picname[20]="lowvol.bin";
 	char network_wrong_picname[20]="networkerr.bin";
 	char config_wifi_picname[20]="qcode.bin";
@@ -88,15 +87,14 @@ int http_test_task(char *dpwn_url)
         return 0;
     }
 
-    analysis_data();
-    spi_flash_read(info_page*4096,&current_data,sizeof(current_data));
-
     esp_http_client_config_t config = {
     	.url = dpwn_url,
         .event_handler = _http_event_handler,
     };
 
     wakeup_cause=*(strstr(config.url,"action")+7);
+    ESP_LOGW(my_tag,"config.url=%s",config.url);
+    ESP_LOGW(my_tag,"wakeup_cause=%c",wakeup_cause);
 
     esp_http_client_handle_t client = esp_http_client_init(&config);
     esp_err_t err;
@@ -109,9 +107,16 @@ int http_test_task(char *dpwn_url)
 			failed_times--;
 			if(failed_times==0)
 			{
-				ESP_LOGW(my_tag, "Failed (tried 3 times) to open HTTP connection");
+				ESP_LOGE(my_tag, "Failed (tried 3 times) to open HTTP connection");
 				free(buffer);
-				display_picture_temp(1,low_network_wifi_picture_page);
+				if(current_data.network_wrong_state==1)
+				{
+					display_picture_temp(1,low_network_wifi_picture_page);
+				}
+				else
+				{
+					ESP_LOGE(my_tag,"flash no low_network_wifi_picture_page to display");
+				}
 				ESP_LOGW(my_tag,"sleep");
 				esp_deep_sleep_start();
 				return 0;
@@ -123,19 +128,13 @@ int http_test_task(char *dpwn_url)
 		}
     }
 
-    ESP_LOGW(my_tag,"config.url=%s",config.url);
     int content_length = esp_http_client_fetch_headers(client);
     int total_read_len = 0, read_len;
     data_read_size = esp_http_client_get_content_length(client);
-
-
-    ESP_LOGE(TAG, "start_earse flash size");
-    spi_flash_erase_range((picture_page + picture_cap * current_data.pic_number) * 4096, picture_cap * 4096); //清除flash内存
-    ESP_LOGE(TAG, "earse flash end");
-
     ESP_LOGE(TAG, "start_download");
     ESP_LOGW(my_tag,"content_length=%d",content_length);
     ESP_LOGW(my_tag,"data_read_size=%d",data_read_size);
+
     if (total_read_len < content_length && content_length <= MAX_HTTP_RECV_BUFFER)
     {
         read_len = esp_http_client_read(client, buffer, content_length);
@@ -161,23 +160,27 @@ int http_test_task(char *dpwn_url)
 
     	if(strcmp(picname,low_power_picname)==0)
     	{
-    		picture_index=0;
     		flag++;
+    		picture_index=0;
+    		current_data.low_power_state=1;
     	}
 		if(strcmp(picname,network_wrong_picname)==0)
 		{
-			picture_index=1;
 			flag++;
+			picture_index=1;
+			current_data.network_wrong_state=1;
 		}
     	if(strcmp(picname,config_wifi_picname)==0)
     	{
-    		picture_index=2;
     		flag++;
+    		picture_index=2;
+    		current_data.config_wifi_state=1;
     	}
 
     	if(flag==0)
     	{
 //			unsigned char i;
+//    		char temp_name[20];
 //			for (i = 0; i < current_data.pic_number; i++)
 //			{
 //				spi_flash_read(info_pic_name + i * 20, temp_name, 20);
@@ -193,15 +196,18 @@ int http_test_task(char *dpwn_url)
 				picture_index=current_data.pic_number;
 				sf_WriteBuffer((uint8_t *)picname, info_pic_name + current_data.pic_number * 20, 20);
 				current_data.pic_number++;
-				spi_flash_write(info_page*4096,&current_data,sizeof(current_data));
 //			}
 			picture_page_index=picture_page;
     	}
     	else
     	{
-        	picture_page_index=low_network_wifi_picture_page;
+    		picture_page_index=low_network_wifi_picture_page;
+    		ESP_LOGE(TAG, "start_earse flash size");
+			spi_flash_erase_range((picture_page_index + picture_cap * picture_index) * 4096, picture_cap * 4096); //清除flash内存
+			ESP_LOGE(TAG, "earse flash end");
     		sf_WriteBuffer((uint8_t *)picname, info_pic_name_for_err + picture_index * 20, 20);
     	}
+    	spi_flash_write(info_page*4096,&current_data,sizeof(current_data));
 
     	p=localtime(&time_now);
 		int tm_year=p->tm_year+1900;
@@ -209,7 +215,7 @@ int http_test_task(char *dpwn_url)
 		int tm_mday=p->tm_mday;
 		char time_string[20];
 		int date=tm_year*10000+tm_mon*100+tm_mday;
-		if(wakeup_cause==1)
+		if(wakeup_cause=='1')
 		{
 			if(tm_mon==1)
 			{
@@ -222,7 +228,7 @@ int http_test_task(char *dpwn_url)
 			}
 			tm_mday=1;
 		}
-		if(wakeup_cause==2)
+		if(wakeup_cause=='2')
 		{
 			if(tm_mon==12)
 			{

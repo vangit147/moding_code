@@ -28,8 +28,8 @@
 #include "esp_spiffs.h"
 #include "http_client.h"
 #include "esp_spi_flash.h"
-
-
+#include "spiff.h"
+#include "data_flash.h"
 
 /************************************/
 //update van pull_ring
@@ -40,7 +40,7 @@ extern unsigned char flag[4096];
 char url_state=0;
 extern int time_from_server;
 /************************************/
-
+#define my_tag "desk_calender"
 extern int READ_BIT;
 extern int CLEAR_BIT;
 extern int DOWNLOAD_BIT;
@@ -371,8 +371,19 @@ void example_exec_write_event_env(prepare_type_env_t *prepare_write_env, esp_ble
 #ifndef on_off
 //				 esp_timer_stop(periodic_timer_moding);
 #endif
+
 				 esp_timer_stop(periodic_timer);
-				 printf("wifi_connect......\r\n");
+				 printf("wifi_config......\r\n");
+				 memcpy(current_data.wifi_ssid, prepare_write_env->prepare_buf + 5, prepare_write_env->prepare_buf[4]);
+				 int j = 4 + prepare_write_env->prepare_buf[4] + 1;
+				 memcpy(current_data.wifi_pssd, prepare_write_env->prepare_buf + 5 + prepare_write_env->prepare_buf[4] + 1, prepare_write_env->prepare_buf[j]);
+				 spi_flash_write(info_page*4096,&current_data,sizeof(current_data));
+				 ble_senddata(prepare_write_env->prepare_buf);
+				 ESP_LOGW(my_tag,"go to sleep");
+				 esp_deep_sleep_start();
+
+//				 esp_timer_stop(periodic_timer);
+//				 printf("wifi_connect......\r\n");
 
 //				wifi_config_t wifi_config;
 //				bzero(&wifi_config, sizeof(wifi_config_t));
@@ -388,45 +399,45 @@ void example_exec_write_event_env(prepare_type_env_t *prepare_write_env, esp_ble
 //				esp_wifi_connect();
 
 				//udpate van
-				printf("/*******************prepare_buf****************************/\n");
-				int j = 4 + prepare_write_env->prepare_buf[4] + 1;
-				memset(wifi_ssid_first,0,sizeof(wifi_ssid_first));
-				memset(wifi_pssd_first,0,sizeof(wifi_pssd_first));
-				memcpy(wifi_ssid_first, prepare_write_env->prepare_buf + 5, prepare_write_env->prepare_buf[4]);
-				printf("wifi_ssid_first=%s\r\n", wifi_ssid_first);
-				memcpy(wifi_pssd_first, prepare_write_env->prepare_buf + 5 + prepare_write_env->prepare_buf[4] + 1, prepare_write_env->prepare_buf[j]);
-			    printf("wifi_pssd_first=%s\r\n", wifi_pssd_first);
-				if(strcmp(wifi_ssid_first,wifi_ssid_is_empty)&&strcmp(wifi_pssd_first,wifi_pssd_is_empty)&&(strcmp(wifi_ssid_tmp,wifi_ssid_first)||strcmp(wifi_pssd_tmp,wifi_pssd_first)))
-				{
-					strcpy(wifi_ssid_tmp, wifi_ssid_first);
-					strcpy(wifi_pssd_tmp, wifi_pssd_first);
-					printf("wifi_ssid_tmp=%s\r\n",wifi_ssid_tmp);
-					printf("wifi_pssd_tmmp=%s\r\n",wifi_pssd_tmp);
-					if(strcmp(wifi_ssid_cache,wifi_ssid_tmp)||strcmp(wifi_pssd_cache, wifi_pssd_tmp))
-					{
-					    wifi_config_t wifi_config;
-						bzero(&wifi_config, sizeof(wifi_config_t));
-						//需要再更改一下代码
-						strcpy((char *)wifi_config.sta.ssid,wifi_ssid_tmp);
-						strcpy((char *)wifi_config.sta.password,wifi_pssd_tmp);
-//						memcpy(wifi_config.sta.ssid, prepare_write_env->prepare_buf + 5, prepare_write_env->prepare_buf[4]);
-//						memcpy(wifi_config.sta.password, prepare_write_env->prepare_buf + 5 + prepare_write_env->prepare_buf[4] + 1, prepare_write_env->prepare_buf[j]);
-						printf("ssid=%s\r\n", wifi_config.sta.ssid);
-						printf("pssd=%s\r\n", wifi_config.sta.password);
-						ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
-						esp_wifi_disconnect();
-						esp_wifi_connect();
-						strcpy(wifi_ssid_cache, wifi_ssid_tmp);
-						strcpy(wifi_pssd_cache, wifi_pssd_tmp);
-						printf("wifi_ssid_cache=%s\r\n",wifi_ssid_cache);
-					    printf("wifi_pssd_cache=%s\r\n",wifi_pssd_cache);
-					}
-				}
+//				printf("/*******************prepare_buf****************************/\n");
+//				int j = 4 + prepare_write_env->prepare_buf[4] + 1;
+//				memset(wifi_ssid_first,0,sizeof(wifi_ssid_first));
+//				memset(wifi_pssd_first,0,sizeof(wifi_pssd_first));
+//				memcpy(wifi_ssid_first, prepare_write_env->prepare_buf + 5, prepare_write_env->prepare_buf[4]);
+//				printf("wifi_ssid_first=%s\r\n", wifi_ssid_first);
+//				memcpy(wifi_pssd_first, prepare_write_env->prepare_buf + 5 + prepare_write_env->prepare_buf[4] + 1, prepare_write_env->prepare_buf[j]);
+//			    printf("wifi_pssd_first=%s\r\n", wifi_pssd_first);
+//				if(strcmp(wifi_ssid_first,wifi_ssid_is_empty)&&strcmp(wifi_pssd_first,wifi_pssd_is_empty)&&(strcmp(wifi_ssid_tmp,wifi_ssid_first)||strcmp(wifi_pssd_tmp,wifi_pssd_first)))
+//				{
+//					strcpy(wifi_ssid_tmp, wifi_ssid_first);
+//					strcpy(wifi_pssd_tmp, wifi_pssd_first);
+//					printf("wifi_ssid_tmp=%s\r\n",wifi_ssid_tmp);
+//					printf("wifi_pssd_tmmp=%s\r\n",wifi_pssd_tmp);
+//					if(strcmp(wifi_ssid_cache,wifi_ssid_tmp)||strcmp(wifi_pssd_cache, wifi_pssd_tmp))
+//					{
+//					    wifi_config_t wifi_config;
+//						bzero(&wifi_config, sizeof(wifi_config_t));
+//						//需要再更改一下代码
+//						strcpy((char *)wifi_config.sta.ssid,wifi_ssid_tmp);
+//						strcpy((char *)wifi_config.sta.password,wifi_pssd_tmp);
+////						memcpy(wifi_config.sta.ssid, prepare_write_env->prepare_buf + 5, prepare_write_env->prepare_buf[4]);
+////						memcpy(wifi_config.sta.password, prepare_write_env->prepare_buf + 5 + prepare_write_env->prepare_buf[4] + 1, prepare_write_env->prepare_buf[j]);
+//						printf("ssid=%s\r\n", wifi_config.sta.ssid);
+//						printf("pssd=%s\r\n", wifi_config.sta.password);
+//						ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
+//						esp_wifi_disconnect();
+//						esp_wifi_connect();
+//						strcpy(wifi_ssid_cache, wifi_ssid_tmp);
+//						strcpy(wifi_pssd_cache, wifi_pssd_tmp);
+//						printf("wifi_ssid_cache=%s\r\n",wifi_ssid_cache);
+//					    printf("wifi_pssd_cache=%s\r\n",wifi_pssd_cache);
+//					}
+//				}
 				/***********************************************************/
 
-				ble_senddata(prepare_write_env->prepare_buf);
-				ESP_LOGI(GATTS_TAG, "open timer");
-	            esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
+//				ble_senddata(prepare_write_env->prepare_buf);
+//				ESP_LOGI(GATTS_TAG, "open timer");
+//	            esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
             }
             else if (prepare_write_env->prepare_buf[3] == 0x02)
             {
@@ -844,8 +855,18 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
 #ifndef on_off
 //				 esp_timer_stop(periodic_timer_moding);
 #endif
-							esp_timer_stop(periodic_timer);
-							ESP_LOGW(MY_TAG,"wifi_connect......");
+                        	 esp_timer_stop(periodic_timer);
+							 printf("wifi_config......\r\n");
+							 memcpy(current_data.wifi_ssid, receive_buffer + 5, receive_buffer[4]);
+							 int j = 4 + receive_buffer[4] + 1;
+							 memcpy(current_data.wifi_pssd, receive_buffer + 5 + receive_buffer[4] + 1, receive_buffer[j]);
+							 spi_flash_write(info_page*4096,&current_data,sizeof(current_data));
+							 ble_senddata(receive_buffer);
+							 ESP_LOGW(my_tag,"go to sleep");
+							 esp_deep_sleep_start();
+
+//							esp_timer_stop(periodic_timer);
+//							ESP_LOGW(MY_TAG,"wifi_connect......");
 
 //							wifi_config_t wifi_config;
 //							bzero(&wifi_config, sizeof(wifi_config_t));
@@ -862,44 +883,44 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
 //							esp_wifi_connect();
 
 							//update van
-							ESP_LOGW(MY_TAG,"/*******************receive_buf****************************/");
-							int j = 4 + receive_buffer[4] + 1;
-							memset(wifi_ssid_first,0,sizeof(wifi_ssid_first));
-							memset(wifi_pssd_first,0,sizeof(wifi_pssd_first));
-							memcpy(wifi_ssid_first, receive_buffer + 5, receive_buffer[4]);
-							ESP_LOGW(MY_TAG,"wifi_ssid_first=%s", wifi_ssid_first);
-							memcpy(wifi_pssd_first, receive_buffer + 5 + receive_buffer[4] + 1, receive_buffer[j]);
-							ESP_LOGW(MY_TAG,"wifi_pssd_first=%s", wifi_pssd_first);
-							if(strcmp(wifi_ssid_first,wifi_ssid_is_empty)&&strcmp(wifi_pssd_first,wifi_pssd_is_empty)&&(strcmp(wifi_ssid_tmp,wifi_ssid_first)||strcmp(wifi_pssd_tmp,wifi_pssd_first)))
-							{
-								strcpy(wifi_ssid_tmp, wifi_ssid_first);
-								strcpy(wifi_pssd_tmp, wifi_pssd_first);
-								ESP_LOGW(MY_TAG,"wifi_ssid_tmp=%s",wifi_ssid_tmp);
-								ESP_LOGW(MY_TAG,"wifi_pssd_tmmp=%s",wifi_pssd_tmp);
-								if(strcmp(wifi_ssid_cache,wifi_ssid_tmp)||strcmp(wifi_pssd_cache, wifi_pssd_tmp))
-								{
-									wifi_config_t wifi_config;
-									bzero(&wifi_config, sizeof(wifi_config_t));
-									//需要再更改一下代码
-									strcpy((char *)wifi_config.sta.ssid,wifi_ssid_tmp);
-									strcpy((char *)wifi_config.sta.password,wifi_pssd_tmp);
-//									memcpy(wifi_config.sta.ssid, receive_buffer + 5, receive_buffer[4]);
-//									memcpy(wifi_config.sta.password, receive_buffer + 5 + receive_buffer[4] + 1, receive_buffer[j]);
-									ESP_LOGW(MY_TAG,"ssid=%s", wifi_config.sta.ssid);
-									ESP_LOGW(MY_TAG,"pssd=%s", wifi_config.sta.password);
-									ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
-									esp_wifi_disconnect();
-									esp_wifi_connect();
-									strcpy(wifi_ssid_cache, wifi_ssid_tmp);
-									strcpy(wifi_pssd_cache, wifi_pssd_tmp);
-									ESP_LOGW(MY_TAG,"wifi_ssid_cache=%s",wifi_ssid_cache);
-									ESP_LOGW(MY_TAG,"wifi_pssd_cache=%s",wifi_pssd_cache);
-								}
-							}
-							/**********************************************/
-							 ble_senddata(receive_buffer);
-							 ESP_LOGI(GATTS_TAG, "open timer");
-					         esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
+//							ESP_LOGW(MY_TAG,"/*******************receive_buf****************************/");
+//							int j = 4 + receive_buffer[4] + 1;
+//							memset(wifi_ssid_first,0,sizeof(wifi_ssid_first));
+//							memset(wifi_pssd_first,0,sizeof(wifi_pssd_first));
+//							memcpy(wifi_ssid_first, receive_buffer + 5, receive_buffer[4]);
+//							ESP_LOGW(MY_TAG,"wifi_ssid_first=%s", wifi_ssid_first);
+//							memcpy(wifi_pssd_first, receive_buffer + 5 + receive_buffer[4] + 1, receive_buffer[j]);
+//							ESP_LOGW(MY_TAG,"wifi_pssd_first=%s", wifi_pssd_first);
+//							if(strcmp(wifi_ssid_first,wifi_ssid_is_empty)&&strcmp(wifi_pssd_first,wifi_pssd_is_empty)&&(strcmp(wifi_ssid_tmp,wifi_ssid_first)||strcmp(wifi_pssd_tmp,wifi_pssd_first)))
+//							{
+//								strcpy(wifi_ssid_tmp, wifi_ssid_first);
+//								strcpy(wifi_pssd_tmp, wifi_pssd_first);
+//								ESP_LOGW(MY_TAG,"wifi_ssid_tmp=%s",wifi_ssid_tmp);
+//								ESP_LOGW(MY_TAG,"wifi_pssd_tmmp=%s",wifi_pssd_tmp);
+//								if(strcmp(wifi_ssid_cache,wifi_ssid_tmp)||strcmp(wifi_pssd_cache, wifi_pssd_tmp))
+//								{
+//									wifi_config_t wifi_config;
+//									bzero(&wifi_config, sizeof(wifi_config_t));
+//									//需要再更改一下代码
+//									strcpy((char *)wifi_config.sta.ssid,wifi_ssid_tmp);
+//									strcpy((char *)wifi_config.sta.password,wifi_pssd_tmp);
+////									memcpy(wifi_config.sta.ssid, receive_buffer + 5, receive_buffer[4]);
+////									memcpy(wifi_config.sta.password, receive_buffer + 5 + receive_buffer[4] + 1, receive_buffer[j]);
+//									ESP_LOGW(MY_TAG,"ssid=%s", wifi_config.sta.ssid);
+//									ESP_LOGW(MY_TAG,"pssd=%s", wifi_config.sta.password);
+//									ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
+//									esp_wifi_disconnect();
+//									esp_wifi_connect();
+//									strcpy(wifi_ssid_cache, wifi_ssid_tmp);
+//									strcpy(wifi_pssd_cache, wifi_pssd_tmp);
+//									ESP_LOGW(MY_TAG,"wifi_ssid_cache=%s",wifi_ssid_cache);
+//									ESP_LOGW(MY_TAG,"wifi_pssd_cache=%s",wifi_pssd_cache);
+//								}
+//							}
+//							/**********************************************/
+//							 ble_senddata(receive_buffer);
+//							 ESP_LOGI(GATTS_TAG, "open timer");
+//					         esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
                         }
                         else if (receive_buffer[3] == 0x02)
                         {
