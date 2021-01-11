@@ -1,5 +1,8 @@
 #ifndef __GATTS_SERVER_H__
 #define __GATTS_SERVER_H__
+
+#include "esp_gatts_api.h"
+
 void getdeviceinfo(void);
 void GattServers_Init(void);
 #define PROFILE_NUM 1

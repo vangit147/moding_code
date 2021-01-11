@@ -7,7 +7,7 @@
 #include "esp_spiffs.h"
 #include "esp_spi_flash.h"
 #include "spiff.h"
-static const char *TAG = "spi_flash";
+//static const char *TAG = "spi_flash";
 #define Sector 4096
 #define PSector 49152
 

@@ -19,7 +19,7 @@
 #include "esp_log.h"
 #define MY_TAG	"moding"
 //#include "gatts_server.h"
-extern void getdeviceinfo(void);
+#include "gatts_server.h"
 extern esp_ble_adv_data_t adv_data;
 unsigned char isconnected = 0;
 /* 系统事件循环处理函数 */

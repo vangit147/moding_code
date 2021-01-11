@@ -3,16 +3,11 @@
    SPI_flash需要先擦除再写入 4096 页
    4000记录图片个数，4001-4096存储路径
 */
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "esp_timer.h"
-#include "esp_sleep.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
 #include "esp_system.h"
-#include "esp_log.h"
 #include "nvs_flash.h"
 #include "esp_bt.h"
 #include "esp_gap_ble_api.h"
@@ -27,27 +22,16 @@
 #include "esp_err.h"
 #include "esp_spiffs.h"
 #include "http_client.h"
-#include "esp_spi_flash.h"
-#include "spiff.h"
 #include "data_flash.h"
 
-/************************************/
-//update van pull_ring
-//#include "display_pic.h"
-//extern esp_timer_handle_t periodic_timer_moding;
 extern unsigned char flag[4096];
-//extern unsigned char pic_is_loop_display;
 char url_state=0;
-extern int time_from_server;
 /************************************/
-#define my_tag "desk_calender"
 extern int READ_BIT;
 extern int CLEAR_BIT;
 extern int DOWNLOAD_BIT;
-extern unsigned char isconnected; //wifi连接标志位
 extern esp_vfs_spiffs_conf_t conf;
 extern QueueHandle_t Message_Queue; //信息队列句柄
-extern esp_timer_handle_t periodic_timer;
 extern esp_timer_handle_t periodic_timer2;
 extern EventGroupHandle_t EventGroupHandler; //事件标志组句柄
 
@@ -69,7 +53,7 @@ esp_gatt_if_t data_gatts_if = 0xff;
 #define MY_TAG	"moding"
 
 //update van
-extern int url_length;
+int url_length;
 
 char wifi_ssid_first[32];
 char wifi_pssd_first[64];
