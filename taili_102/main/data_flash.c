@@ -87,14 +87,14 @@ void init_default_data()
 	default_data.check_head[0]=0x55;
 	default_data.check_head[1]=0x56;
 	default_data.pic_number=0;
-	default_data.low_power_state=0;
+	default_data.low_power_state=-1;
 	strcpy(default_data.pic_name,"20210101.bin");
 	strcpy(default_data.pic_name_current,"20210112.bin");
 	strcpy(default_data.wifi_ssid,default_wifi_ssid);
 	strcpy(default_data.wifi_pssd,default_wifi_pssd);
 	strcpy(default_data.server_add_get_down_pic,"https://aink.net/devices/download/pic/");
-	default_data.network_wrong_state=0;
-	default_data.config_wifi_state=0;
+	default_data.network_wrong_state=-1;
+	default_data.config_wifi_state=-1;
 	strcpy(default_data.server_add_tell_down_ok,"https://aink.net/devices/finished/pic/");
 	strcpy(default_data.server_add_tell_dele_ok,"https://aink.net/devices/deleted/pic/");
 	strcpy(default_data.server_add_to_downlo_pic,"https://aink.net/devices/resources/");
@@ -236,8 +236,6 @@ void cJSON_data(char *json_str)
 	struct timeval stime;
 	cJSON * root = NULL;
 	cJSON * item = NULL;
-//	cJSON * item_temp = NULL;
-//	char temp_name[20];
 	root = cJSON_Parse(json_str);
 	if (!root)
 	{
@@ -376,16 +374,6 @@ void download_composite(cJSON * item)
 	http_test_task(download_URL);
 }
 
-//void string2int(const char * string)
-//{
-//    int value = 0;
-//    int index = 0;
-//    for(;string[index] >= '0' && string[index] <= '9'; index ++)
-//    {
-//        value = value * 10 + string[index] - '0';
-//    }
-//    return value;
-//}
 
 void inttostring(long value, char * output)
 {
@@ -486,7 +474,6 @@ void charconnectuchar(char a[],unsigned char b[])
 //		}
 
 
-
 //    unsigned char task;
 //    spi_flash_read(composite_picture_page*4096+sizeof(unsigned char),&task, sizeof(unsigned char));
 //    printf("task=%x\n",task);
@@ -506,8 +493,8 @@ void charconnectuchar(char a[],unsigned char b[])
 //    	sf_WriteBuffer((uint8_t *)&task, composite_picture_page*4096+sizeof(unsigned char), 1);
 //    }
 
-
-
+//	cJSON * item_temp = NULL;
+//	char temp_name[20];
 //			printf("%s\n", "get downloadlist cJSON object:");
 //			item_temp = cJSON_GetObjectItem(root, "downloadlist");
 //			ESP_LOGW(my_tag,"%s", cJSON_Print(item_temp));
@@ -546,9 +533,6 @@ void charconnectuchar(char a[],unsigned char b[])
 //			}
 
 
-
-
-
 //				 "deletepic"
 //				for (unsigned char i = 0; i < current_data.pic_number; i++)
 //				{
@@ -564,3 +548,15 @@ void charconnectuchar(char a[],unsigned char b[])
 //						break;
 //					}
 //				}
+
+
+//void string2int(const char * string)
+//{
+//    int value = 0;
+//    int index = 0;
+//    for(;string[index] >= '0' && string[index] <= '9'; index ++)
+//    {
+//        value = value * 10 + string[index] - '0';
+//    }
+//    return value;
+//}
