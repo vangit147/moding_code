@@ -21,6 +21,10 @@ void init_default_data();
 
 void analysis_data();
 
+void updated_esp_time();
+
+void updated_data_to_flash();
+
 void check_wifi_httpdowload_pic(char wakeup_cause);
 
 void download_composite(cJSON * item);

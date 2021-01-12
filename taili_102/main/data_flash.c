@@ -1,5 +1,6 @@
 #include "data_flash.h"
 
+char *deletepic="deletepic=";
 char *picname="picname=";
 char *picsize="picsize=";
 char *Voltage="voltage=";
@@ -88,7 +89,7 @@ void init_default_data()
 	default_data.pic_number=0;
 	default_data.low_power_state=0;
 	strcpy(default_data.pic_name,"20210101.bin");
-	strcpy(default_data.pic_name_current,"20210101.bin");
+	strcpy(default_data.pic_name_current,"20210112.bin");
 	strcpy(default_data.wifi_ssid,default_wifi_ssid);
 	strcpy(default_data.wifi_pssd,default_wifi_pssd);
 	strcpy(default_data.server_add_get_down_pic,"https://aink.net/devices/download/pic/");
@@ -106,10 +107,12 @@ void init_default_data()
 	default_data.remain_space=11534336-2*4*1024-picture_cap*(current_data.pic_number+current_data.low_power_state+current_data.config_wifi_state+current_data.network_wrong_state);
 
 	spi_flash_erase_sector(info_page);
+	spi_flash_erase_sector(info_page_backup);
 	spi_flash_write(info_page*sector_size,&default_data,sizeof(default_data));
 	spi_flash_write(info_page_backup*sector_size,&default_data,sizeof(default_data));
 	ESP_LOGW(my_tag,"write default data to array done and write flash 1280 1281 done");
 }
+
 void analysis_data()
 {
 //	ESP_LOGW(my_tag,"sizeof(default_data)=%d",sizeof(data));
@@ -117,11 +120,6 @@ void analysis_data()
 	ESP_LOGW(my_tag,"current_data.check_head[0]=%x",current_data.check_head[0]);
 	ESP_LOGW(my_tag,"current_data.check_head[1]=%x",current_data.check_head[1]);
 	ESP_LOGW(my_tag,"current_data.time_stamp=%ld",current_data.time_stamp);
-	gettimeofday(&stime,NULL);
-	time_now=stime.tv_sec;
-	current_data.time_stamp=stime.tv_sec;
-//	p=localtime(&time_now);
-//	ESP_LOGW(my_tag,"now it`s :%s",asctime(p));
 	ESP_LOGW(my_tag,"current_data.picture_time_stamp=%ld",current_data.picture_time_stamp);
 	ESP_LOGW(my_tag,"current_data.pic_name=%s",current_data.pic_name);
 	ESP_LOGW(my_tag,"current_data.wifi_ssid=%s",current_data.wifi_ssid);
@@ -147,11 +145,28 @@ void analysis_data()
 //	}
 }
 
+void updated_esp_time()
+{
+	gettimeofday(&stime,NULL);
+	time_now=stime.tv_sec;
+	current_data.time_stamp=stime.tv_sec;
+	p=localtime(&time_now);
+	ESP_LOGW(my_tag,"now it`s :%s",asctime(p));
+}
+
+void updated_data_to_flash()
+{
+	spi_flash_erase_sector(info_page);
+	spi_flash_erase_sector(info_page_backup);
+	spi_flash_write(info_page*4096,&current_data,sizeof(current_data));
+	spi_flash_write(info_page_backup*4096,&current_data,sizeof(current_data));
+	ESP_LOGW(my_tag,"udpated data to flash 1280 1281 sector");
+}
 
 void check_wifi_httpdowload_pic(char wakeup_cause)
 {
 	ESP_LOGW(my_tag,"isconnected=%d",isconnected);
-	if(isconnected==0)
+	if(isconnected)
 	{
 		memset(download_URL,'\0',200);
 		strcat(download_URL,current_data.server_add_get_down_pic);
@@ -185,8 +200,8 @@ void check_wifi_httpdowload_pic(char wakeup_cause)
 		strcat(download_URL,timestamp);
 		char temp_time_stamp[50];
 //		inttostring(1234567890,temp_time_stamp);
-		inttostring(current_data.time_stamp,temp_time_stamp);
-//		inttostring(default_time_stamp,temp_time_stamp);
+//		inttostring(current_data.time_stamp,temp_time_stamp);
+		inttostring(default_time_stamp,temp_time_stamp);
 		temp_time_stamp[10]='\0';
 		printf("temp_time_stamp=%s\n",temp_time_stamp);
 		strcat(download_URL,temp_time_stamp);
@@ -235,14 +250,13 @@ void cJSON_data(char *json_str)
 		{
 			if(strcmp(item->valuestring,"ok")==0)
 			{
-				failed_bit=1;
 				failed_times=0;
+				failed_bit=1;
 			}
 			else
 			{
 				if(failed_times>2)
 				{
-					failed_bit=1;
 					failed_times=0;
 					ESP_LOGW(my_tag,"picture download failed (more than twice)");
 					display_picture_temp(1,low_network_wifi_picture_page);
@@ -253,60 +267,26 @@ void cJSON_data(char *json_str)
 		}
 		else
 		{
-//			printf("%s\n", "cJSON(format):");
-//			printf("%s\n", cJSON_Print(root));
+			printf("%s\n", "cJSON(format):");
+			printf("%s\n", cJSON_Print(root));
 
-			printf("%s\n", "get timestame cJSON object:");
-			item = cJSON_GetObjectItem(root, "timestame");
+			printf("%s\n", "get timestamp cJSON object:");
+			item = cJSON_GetObjectItem(root, "timestamp");
 			stime.tv_sec=item->valueint;
 			settimeofday(&stime,NULL);
 			printf("%s\n", cJSON_Print(item));
 			ESP_LOGW(my_tag,"%s:%d, and set ESP32 time done!!!!!", item->string,item->valueint);
-
-//			printf("%s\n", "get downloadlist cJSON object:");
-//			item_temp = cJSON_GetObjectItem(root, "downloadlist");
-//			ESP_LOGW(my_tag,"%s", cJSON_Print(item_temp));
-
-//			printf("%s\n", "get picname cJSON object:");
-//			if( NULL != item_temp )
-//			{
-//				cJSON *client_list  = item_temp->child;
-//				if( NULL == client_list )
-//				{
-//					ESP_LOGW(my_tag,"picname is NULL,no need to download picture(s)");
-//					ESP_LOGW(my_tag,"go to sleep");
-//					esp_deep_sleep_start();
-//				}
-//				else
-//				{
-//					while( client_list != NULL )
-//					{
-//						failed_times++;
-//						download_composite(item);
-//						if(failed_bit==1)
-//						{
-//							client_list = client_list->next;
-//						}
-//					}
-//					ESP_LOGW(my_tag,"all pictures downloaded");
-//					ESP_LOGW(my_tag,"go to sleep");
-//					esp_deep_sleep_start();
-//				}
-//			}
-//			else
-//			{
-//				ESP_LOGW(my_tag,"no downloadlist string");
-//				ESP_LOGW(my_tag,"go to sleep");
-//				esp_deep_sleep_start();
-//			}
-
+			updated_esp_time();
+			updated_data_to_flash();
 
 			item = cJSON_GetObjectItem(root, "picname");
 			if(item!=NULL)
 			{
+//				while(failed_bit==0)
 				while(failed_times<=2)
 				{
 					printf("%s\n", "get picname cJSON object:");
+					printf("%s\n", cJSON_Print(item));
 					failed_times++;
 					download_composite(item);
 				}
@@ -351,20 +331,6 @@ void cJSON_data(char *json_str)
 //				printf("%s\n", "get deletepic cJSON object:");
 //				printf("%s\n", cJSON_Print(item));
 //				ESP_LOGW(my_tag,"%s:%s", item->string,item->valuestring);
-//				for (unsigned char i = 0; i < current_data.pic_number; i++)
-//				{
-//					spi_flash_read(info_pic_name + i * 20, temp_name, 20);
-//					if (strcmp((char *)temp_name, item->valuestring) == 0)
-//					{
-//						ESP_LOGW(my_tag, "find same name picture,now delete it");
-//						spi_flash_read(info_page*4096,&current_data,sizeof(current_data));
-//						current_data.pic_number--;
-//						spi_flash_write(info_page*4096,&current_data,sizeof(current_data));
-//						temp_name[8]='*';
-//						sf_WriteBuffer((uint8_t *)temp_name,info_pic_name + i * 20,20);
-//						break;
-//					}
-//				}
 //				download_composite(item);
 //			}
 		}
@@ -374,45 +340,39 @@ void cJSON_data(char *json_str)
 void download_composite(cJSON * item)
 {
 	memset(download_URL,0,200);
-//	char * temp_string="deletepic";
-//	if(item->string==temp_string)
-//	{
-//		for(unsigned char i=0;i<50;i++)
-//		{
-//			download_URL[i]=current_data.server_add_tell_dele_ok[i];
-//		}
-//	}
-//	else
-//	{
-		for(unsigned char i=0;i<50;i++)
-		{
-			download_URL[i]=current_data.server_add_to_downlo_pic[50];
-		}
+	printf("%s\n",item->string);
+	printf("%s\n",item->valuestring);
+	if(strcmp(item->string,"deletepic")==0)
+	{
+		ESP_LOGW(my_tag,"item->string=deletepic");
+		strcat(download_URL,current_data.server_add_tell_dele_ok);
+
+	}
+	if(strcmp(item->string,"picname")==0||strcmp(item->string,"lowvol")||strcmp(item->string,"networkerr")||strcmp(item->string,"qcode"))
+	{
+		ESP_LOGW(my_tag,"item->string=picname");
+		strcat(download_URL,current_data.server_add_to_downlo_pic);
 		charconnectuchar(download_URL,&device_info[8]);
-		strcat(download_URL,"/");
+		download_URL[strlen(download_URL)]=QUES;
+		strcat(download_URL,picname);
 		strcat(download_URL,item->valuestring);
+		ESP_LOGE(my_tag,"url=%s",download_URL);
 		http_test_task(download_URL);
 
 		memset(download_URL,0,200);
-		for(unsigned char i=0;i<50;i++)
-		{
-			download_URL[i]=current_data.server_add_tell_down_ok[i];
-		}
-//	}
-	charconnectuchar(download_URL,&device_info[8]);
-	strcat(download_URL,"?");
-	strcat(download_URL,"picname=");
-	strcat(download_URL,item->valuestring);
-	strcat(download_URL,"&");
-	strcat(download_URL,"timestamp=");
-	unsigned char i=1;
-	while(current_data.time_stamp/10)
-	{
-		i++;
+		strcat(download_URL,current_data.server_add_tell_down_ok);
 	}
-	char temp_time_stamp[i];
+	charconnectuchar(download_URL,&device_info[8]);
+	download_URL[strlen(download_URL)]=QUES;
+	strcat(download_URL,picname);
+	strcat(download_URL,item->valuestring);
+	download_URL[strlen(download_URL)]=AND;
+	strcat(download_URL,timestamp);
+	char temp_time_stamp[11];
 	inttostring(current_data.time_stamp,temp_time_stamp);
+	temp_time_stamp[10]='\0';
 	strcat(download_URL,temp_time_stamp);
+	ESP_LOGE(my_tag,"url=%s",download_URL);
 	http_test_task(download_URL);
 }
 
@@ -472,11 +432,18 @@ void charconnectuchar(char a[],unsigned char b[])
 		sprintf(p,"%x",b[j]);
 		p++;
 		p++;
-		sprintf(p,"%c",':');
-		p++;
+		if(j<5)
+		{
+			sprintf(p,"%c",':');
+			p++;
+		}
 	}
 	strcat(a,arr);
 	printf("j=%d\n",j);
+	for(j=0;j<18;j++)
+	{
+		printf("arr[%d]=%c\n",j,arr[j]);
+	}
 }
 
 
@@ -539,3 +506,61 @@ void charconnectuchar(char a[],unsigned char b[])
 //    	sf_WriteBuffer((uint8_t *)&task, composite_picture_page*4096+sizeof(unsigned char), 1);
 //    }
 
+
+
+//			printf("%s\n", "get downloadlist cJSON object:");
+//			item_temp = cJSON_GetObjectItem(root, "downloadlist");
+//			ESP_LOGW(my_tag,"%s", cJSON_Print(item_temp));
+//
+//			printf("%s\n", "get picname cJSON object:");
+//			if( NULL != item_temp )
+//			{
+//				cJSON *client_list  = item_temp->child;
+//				if( NULL == client_list )
+//				{
+//					ESP_LOGW(my_tag,"picname is NULL,no need to download picture(s)");
+//					ESP_LOGW(my_tag,"go to sleep");
+//					esp_deep_sleep_start();
+//				}
+//				else
+//				{
+//					while( client_list != NULL )
+//					{
+//						failed_times++;
+//						download_composite(item);
+//						if(failed_bit==1)
+//						{
+//							client_list = client_list->next;
+//						}
+//					}
+//					ESP_LOGW(my_tag,"all pictures downloaded");
+//					ESP_LOGW(my_tag,"go to sleep");
+//					esp_deep_sleep_start();
+//				}
+//			}
+//			else
+//			{
+//				ESP_LOGW(my_tag,"no downloadlist string");
+//				ESP_LOGW(my_tag,"go to sleep");
+//				esp_deep_sleep_start();
+//			}
+
+
+
+
+
+//				 "deletepic"
+//				for (unsigned char i = 0; i < current_data.pic_number; i++)
+//				{
+//					spi_flash_read(info_pic_name + i * 20, temp_name, 20);
+//					if (strcmp((char *)temp_name, item->valuestring) == 0)
+//					{
+//						ESP_LOGW(my_tag, "find same name picture,now delete it");
+//						spi_flash_read(info_page*4096,&current_data,sizeof(current_data));
+//						current_data.pic_number--;
+//						spi_flash_write(info_page*4096,&current_data,sizeof(current_data));
+//						temp_name[8]='*';
+//						sf_WriteBuffer((uint8_t *)temp_name,info_pic_name + i * 20,20);
+//						break;
+//					}
+//				}

@@ -68,7 +68,6 @@ extern esp_c_t  CN_Init(void);//5.65  拉环
 extern void Timer_Config(void);
 
 
-
 //主函数入口相关内容初始化
 void app_main()
 {
@@ -97,6 +96,9 @@ void app_main()
 		ESP_LOGW(my_tag,"mac=%x",device_info[8+i]);
 	}
 
+
+
+
 //	 spi_flash_erase_sector(composite_picture_page);
 //	 spi_flash_erase_sector(info_page+1);
 //	 spi_flash_erase_sector(info_page);
@@ -111,6 +113,9 @@ void app_main()
 //	e_init();
 //	ESP_LOGW(my_tag, "CN_Init");
 //	CN_Init();
+
+
+
 
 	ESP_LOGW(my_tag, "read_write_init");
 	read_write_init();
@@ -149,7 +154,8 @@ void app_main()
 	{
 		ESP_LOGW(my_tag,"find wakeup_cause");
 //		find_wakeup_cause();
-		check_wifi_httpdowload_pic('0');
+		check_wifi_httpdowload_pic('1');
+//		ncolor_display(0,0x44);
 	}
 
 	EventGroupHandler = xEventGroupCreate(); //创建事件标志组
@@ -229,6 +235,7 @@ void eventgroup_task(void *pvParameters)
 //                {
 //                    picture_num = 0;
 //                }
+
             	analysis_data();
                 ESP_LOGE("main", "picture_num=%d", picture_num);
 
