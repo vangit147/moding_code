@@ -1,298 +1,678 @@
+/*桌签驱动
+ *  Created on: 2020年9月21日
+ *      Author: ziling
+ *
+ */
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include <string.h>
+#include <stdint.h>
 #include "driver/gpio.h"
+#include "freertos/FreeRTOS.h"
+#include "driver/spi_master.h"
+#include "freertos/task.h"
 #include "esp_log.h"
-#include "esp_system.h"
-#include "pic.h"
-#include "spiff.h"
-#include "esp_spi_flash.h"
-#define sector_size 4096
-#define my_tag "desk_calender"
 
-#define u8    uint8_t
-#define u16   uint16_t
-#define u32   uint32_t
-#define	 LINE_VLAUE   120
-#define  COLUMN_VLAUE 640
-#define MONO 1
-#define RED  2
-void D_MS(int M)
-{	vTaskDelay(M / portTICK_RATE_MS);
-}
-typedef enum{
-	FUNTION_S=0,
-	FUNTION_E=1,
-}c_t;
-void DEV_OP(u8 value, u8 num)
-{
-	int tnum=num;
-	gpio_set_level(value,tnum);
-}
+#define G_SIZE  30720
+#define MAX_WAVE_NUM  20
+#define FR_100HZ 0x3A
+#define FR_86HZ  0x32
+#define FR_71HZ  0x2A
+#define FR_50HZ  0x3C
 
-u8 DEV_GP(u8 value)
+#define VS_3V6  0x03
+#define VS_4V   0x05
+#define VS_4V2  0x06
+#define VS_4V4  0x07
+#define VS_4V6  0x08
+#define VS_4V8  0x09
+#define VS_5V   0x0a
+#define VS_5V2  0x0b
+#define VS_5V4  0x0c
+#define VS_5V6  0x0D
+#define VS_5V8  0x0E
+#define VS_6V   0x0f
+#define VS_6V2  0x10
+#define VS_6V4  0x11
+#define VS_7V   0x14
+#define VS_7V2  0x15
+#define VS_7V4  0x16
+#define VS_7V6  0x17
+#define VS_7V8  0x18
+#define VS_8V   0x19
+#define VS_9V   0x1E
+#define VS_10V  0x23
+#define VS_11V  0x28
+#define VS_15V  0x3c
+
+const unsigned char Lut[]={	0x8,	0x8,	0xC,	0x3C,	0x3C,
+	0x2,	0x0,	0x0,			0x17,	0xC,	0xE,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x7,	0x0,	0x0,			0x12,	0x12,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x0,	0x0,			0xA,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x0,	0x0,			0xA,	0x1,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x1,	0x0,	0x0,			0x0,	0x4,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x4,	0x0,	0x0,			0x3,	0x19,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x5,	0x0,	0x0,			0x2,	0x13,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x0,	0x0,			0x14,	0x2,	0x4,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x0,	0x20,	0x0,	0x0,	0x17,	0xC,	0xE,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x7,	0x21,	0x0,	0x0,	0x0,	0x12,	0x12,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x0,	0x0,	0x0,	0x0,	0xA,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x10,	0x0,	0x0,	0x0,	0xA,	0x1,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x1,	0x0,	0x0,	0x0,	0x0,	0x0,	0x4,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x4,	0x0,	0x0,	0x0,	0x0,	0x3,	0x19,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x5,	0x0,	0x0,	0x0,	0x0,	0x2,	0x13,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x0,	0x10,	0x0,	0x0,	0x14,	0x2,	0x4,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x1,	0x0,	0x0,	0x0,	0x17,	0xC,	0xE,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x7,	0x21,	0x0,	0x0,	0x0,	0x12,	0x12,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x20,	0x0,	0x0,	0x0,	0xA,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x0,	0x0,	0x0,	0x0,	0xA,	0x1,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x1,	0x0,	0x0,	0x0,	0x0,	0x0,	0x4,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x4,	0x0,	0x0,	0x0,	0x0,	0x3,	0x19,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x5,	0x0,	0x0,	0x0,	0x0,	0x2,	0x13,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x2,	0x0,	0x0,	0x0,	0x14,	0x2,	0x4,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x20,	0x0,	0x0,	0x0,	0x17,	0xC,	0xE,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x7,	0x21,	0x0,	0x0,	0x0,	0x12,	0x12,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x0,	0x0,	0x0,	0x0,	0xA,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x10,	0x0,	0x0,	0x0,	0xA,	0x1,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x1,	0x12,	0x0,	0x0,	0x0,	0x0,	0x4,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x4,	0x43,	0x0,	0x0,	0x0,	0x3,	0x19,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x5,	0x43,	0x0,	0x0,	0x0,	0x2,	0x13,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x30,	0x0,	0x0,	0x0,	0x14,	0x2,	0x4,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0xE0,				0x17,	0xC,	0xE,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x7,	0xC0,				0x12,	0x12,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0x80,				0xA,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0xC0,				0xA,	0x1,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x1,	0x40,				0x0,	0x4,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x4,	0xC0,				0x3,	0x19,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x5,	0xC0,				0x2,	0x13,	0x0,	0x0,	0x0,	0x0,	0x0,	0x0,
+	0x2,	0xE0,				0x14,	0x2,	0x4,	0x0,	0x0,	0x0,	0x0,	0x0,
+};
+
+typedef uint16_t  DK_t;
+typedef uint8_t   DK_T;
+typedef uint32_t  DK_Tag;
+typedef uint8_t   DK_T;
+spi_device_handle_t spi;
+
+#define ESP32SET      1
+#define PIN_NUM_MISO 25
+#define PIN_NUM_MOSI 23
+#define PIN_NUM_CLK  21
+#define GPIO_OUTPUT_PIN_SEL  ((1ULL<<PIN_NUM_RST) |(1ULL<<PIN_NUM_CS))
+#define PIN_NUM_BUSY  19
+#define GPIO_INPUT_PIN_SEL  ((1ULL<<PIN_NUM_BUSY))
+#define RY1  13
+#define RY2  17
+#define SOC  4
+#define CS_L 0
+#define CS_H 1
+#define ESP32RESET    0
+#define PARALLEL_LINES 16
+#define  EO  26
+#define  ESP_VALUEW(a,b)   gpio_set_level(a,b)
+#define  ESP_VALUER(a)     gpio_get_level(a)
+
+
+void DK_Init(void);
+void LDK_init(void);
+
+void DK_ByT(void);
+void DK_RTflesh(void);
+
+void DK_ByO(void);
+void DK_ROflesh(void);
+
+void DK_REO_D(void);
+void DK_REO_E(void);
+
+void DK_RET_D(void);
+void DK_RET_E(void);
+
+void  Write_CO(DK_T value);
+void  Write_DO(DK_T data);
+
+void  Write_CT(DK_T value);
+void  Write_DT(DK_T data);
+
+int READK(gpio_num_t g_num);
+void WRITEDK(gpio_num_t g_num,uint32_t value);
+
+void HLUT(unsigned char * wavedata);
+void HLUTO(unsigned char * wavedata);
+
+void delay_ms(uint16_t value);
+
+void Hal_UpGraghScreen1(unsigned char * buffer1,unsigned char * buffer2,unsigned int num);
+void Hal_UpGraghScreen2(unsigned char * buffer1,unsigned char * buffer2,unsigned int num);
+
+
+
+
+void DK_Init(void)
 {
-	u8 i;
-	return (i=gpio_get_level(value));
+//	delay_ms(150);
+//	DK_REO_D();
+//	delay_ms(20);
+//	DK_REO_E();
+//	delay_ms(30);
+//	Write_CO(0x06);
+//	Write_DO(0xd7);
+//	Write_DO(0x2f);
+//    delay_ms(1);
+//    Write_CO(0x04);
+//    delay_ms(10);
+//    DK_ByO();
+//    Write_CO(0x00);
+//	Write_DO(0x0f);
+//	Write_DO(0x80);
+//	Write_CO(0x50);
+//	Write_DO(0x77);
+//	Write_CO(0x61);
+//	Write_DO(0x02);
+//	Write_DO(0x80);
+//	Write_DO(0x01);
+//	Write_DO(0x80);
+//	Write_CO(0x82);
+//	Write_DO(0x28);
+//	DK_ByO();
+//    HLUTO((unsigned char *)Lut);
+
+	delay_ms(150);
+	DK_RET_D();
+	delay_ms(20);
+	DK_RET_E();
+	delay_ms(30);
+	Write_CT(0x06);
+	Write_DT(0xd7);
+	Write_DT(0x2f);
+    delay_ms(1);
+    Write_CT(0x04);
+    delay_ms(10);
+    DK_ByT();
+    Write_CT(0x00);
+	Write_DT(0x0f);
+	Write_DT(0x80);
+	Write_CT(0x50);
+	Write_DT(0x77);
+	Write_CT(0x61);
+	Write_DT(0x02);
+	Write_DT(0x80);
+	Write_DT(0x01);
+	Write_DT(0x80);
+	Write_CT(0x82);
+	Write_DT(0x28);
+	DK_ByT();
+    HLUT((unsigned char *)Lut);
 }
-void epd_read(void)
-{
-	while(DEV_GP(0x0d));
-}
-void er_init(void)
+void LDK_init(void)
 {
     gpio_config_t io_conf;
-    io_conf.intr_type = 0;
+    io_conf.intr_type = GPIO_PIN_INTR_DISABLE;
     io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pin_bit_mask = ((1ULL<<16)|\
-	                                 (1ULL<<15)|(1ULL<<26) \
-						             |(1ULL<<27)|(1ULL<<12)\
-						    |(1ULL<<14));
+    io_conf.pin_bit_mask = ((1ULL<<4) |(1ULL<<5)| (1ULL<<15) |(1ULL<<16)|(1ULL<<26) |(1ULL<<27)|(1ULL<<21) |(1ULL<<23));
     io_conf.pull_down_en = 0;
     io_conf.pull_up_en = 1;
     gpio_config(&io_conf);
-    io_conf.intr_type = 0;
-    io_conf.pin_bit_mask = (1ULL<<13);
+    io_conf.intr_type = GPIO_PIN_INTR_DISABLE;
+    io_conf.pin_bit_mask = (1ULL<<13) |(1ULL<<17);
     io_conf.mode = GPIO_MODE_INPUT;
     io_conf.pull_up_en = 0;
     gpio_config(&io_conf);
-	DEV_OP(0x0f,FUNTION_E);
-	DEV_OP(0x0c,FUNTION_S);
-    D_MS(10);
-    DEV_OP(0x1b,FUNTION_E);
+    WRITEDK(4,1);
+    WRITEDK(15,1);
+    WRITEDK(5,1);
+    WRITEDK(26,1);
+    WRITEDK(21,0);
+	delay_ms(100);
+	DK_Init();
+	//桌签按键
+//	esp_sleep_enable_ext1_wakeup(1ULL<<0x0e,ESP_EXT1_WAKEUP_ALL_LOW);
 }
 
-void DEV_CO(uint8_t value)
+void DK_ByT(void)
 {
-	DEV_OP(0x0f, FUNTION_E);
-	DEV_OP(0x0f, FUNTION_S);
-	DEV_OP(0x1b, FUNTION_S);
-    ets_delay_us(5);
-    DEV_OP(0x0c, FUNTION_S);
-    for (int i = 0; i < 8; i++){
-        if ((value & 0x80) == 0)
-        	DEV_OP(0x0e, FUNTION_S);
-        else
-        	DEV_OP(0x0e, FUNTION_E);
-        DEV_OP(0x0c, FUNTION_E);
-            ets_delay_us(5);
-            DEV_OP(0x0c, FUNTION_S);
-            value <<= 1;
-    }
-    ets_delay_us(5);
-    DEV_OP(0x0f, FUNTION_E);
-}
-void DEV_DTO(uint8_t value)
-{
-	DEV_OP(0x0f, FUNTION_E);
-	DEV_OP(0x0f, FUNTION_S);
-	DEV_OP(0x1b, FUNTION_E);
-    ets_delay_us(5);
-    DEV_OP(0x0c, FUNTION_S);
-    for (int i = 0; i < 8; i++)
-    {
-        if ((value & 0x80) == 0)
-        	DEV_OP(0x0e, FUNTION_S);
-        else
-        	DEV_OP(0x0e, FUNTION_E);
-        DEV_OP(0x0c, FUNTION_E);
-            ets_delay_us(2);
-            DEV_OP(0x0c, FUNTION_S);
-            value <<= 1;
-    }
-    ets_delay_us(5);
-    DEV_OP(0x0f, FUNTION_E);
-}
-void epd_rd(void)
-{
-	D_MS(100);
-	DEV_OP(0x1a, FUNTION_S);
-	D_MS(10);
-	DEV_OP(0x1a, FUNTION_E);
-	D_MS(10);
-	epd_read();
-	DEV_CO(0x12);
-	epd_read();
-}
-void epd_lut(u8 Tsensor_mode)
-{
-	DEV_CO(0x18);
-	DEV_DTO(0x80);
-	DEV_CO(0x22);
-	DEV_DTO(0xB1);
-	DEV_CO(0x20);
-	epd_read();
-}
-void e_init(void)
-{
-	er_init();
-	epd_rd();
-	DEV_CO(0x0c);
-	DEV_DTO(0xAE);
-	DEV_DTO(0xC7);
-	DEV_DTO(0xC3);
-	DEV_DTO(0xC0);
-	DEV_DTO(0x80);
-	DEV_CO(0x01);
-	DEV_DTO(0x7f);
-	DEV_DTO(0x02);
-	DEV_DTO(0x00);
-	DEV_CO(0x11);
-	DEV_DTO(0x01);
-	DEV_CO(0x44);
-	DEV_DTO(0x00);
-	DEV_DTO(0x00);
-	DEV_DTO(0xbf);
-	DEV_DTO(0x03);
-	DEV_CO(0x45);
-	DEV_DTO(0x7f);
-	DEV_DTO(0x02);
-	DEV_DTO(0x00);
-	DEV_DTO(0x00);
-	DEV_CO(0x3c);
-	DEV_DTO(0x01);
-}
-void reflesh_disp(void)
-{
-	DEV_CO(0x22);
-	DEV_DTO(0xC7);
-	DEV_CO(0x20);
-	epd_read();
-	D_MS(100);
-}
-void ereLocation(void)
-{
-	DEV_CO(0x4E);
-	DEV_DTO(0x00);
-	DEV_DTO(0x00);
-	DEV_CO(0x4F);
-	DEV_DTO(0x7f);
-	DEV_DTO(0x02);
-	epd_read();
+  while(READK(RY2)==0)
+	delay_ms(1);
 }
 
-uint32_t pic_index_temp=0;
-void pic_Load_Data_temp(int display_index,int picture_page_index)
+void DK_RTflesh(void)
 {
-	int len=19,i=0;
-	char buffer[sector_size];
-	int temp_total;
-	if(pic_index_temp==76799)
+	Write_CT(0x12);
+	delay_ms(1000);
+	DK_ByT();
+}
+
+void DK_ByO(void)
+{
+  while(READK(RY1)==0)
+	delay_ms(1);
+}
+void DK_ROflesh(void)
+{
+	Write_CO(0x12);
+	delay_ms(1000);
+	DK_ByO();
+}
+
+void DK_REO_D(void)
+{
+   WRITEDK(EO,ESP32RESET);
+}
+void DK_REO_E(void)
+{
+   WRITEDK(EO,ESP32SET);
+}
+
+void DK_RET_D(void)
+{
+   WRITEDK(5,0);
+}
+void DK_RET_E(void)
+{
+   WRITEDK(5,1);
+}
+
+void  Write_CO(DK_T value)
+{
+	WRITEDK(15,ESP32SET);
+	WRITEDK(15,ESP32RESET);
+	WRITEDK(27,ESP32RESET);
+	ets_delay_us(5);
+	WRITEDK(21, 0);
+	for (int i = 0; i < 8; i++)
 	{
-		ESP_LOGW(my_tag,"pic_index=%d",pic_index_temp);
-		i=19;
-		len=38;
-	}
-	for(;i<len;i++)
-	{
-		if(i==18)
-		{
-			 spi_flash_write((picture_page_index + picture_cap * display_index) * 4096 + i * ((sector_size*3)/4), buffer, (sector_size*3)/4);
-			 temp_total=(sector_size*3)/4;
-		}
-		else if(i<18)
-		{
-			spi_flash_write((picture_page_index + picture_cap * display_index) * 4096 + i * sector_size, buffer, sector_size);
-			temp_total=sector_size;
-		}
-		else if(i==19||(i>19&&i<37))
-		{
-			 spi_flash_write((picture_page_index + picture_cap * display_index) * 4096 + (i-1) * (sector_size/4), buffer, sector_size/4);
-			 spi_flash_write((picture_page_index + picture_cap * display_index) * 4096 + i * ((sector_size*3)/4), &buffer[sector_size/4], (sector_size*3)/4);
-			 temp_total=sector_size;
-		}
+		if ((value & 0x80) == 0)
+		WRITEDK(23, ESP32RESET);
 		else
-		{
-			spi_flash_write((picture_page_index + picture_cap * display_index) * 4096 + (i-1) * (sector_size/4), buffer, sector_size/4);
-			spi_flash_write((picture_page_index + picture_cap * display_index) * 4096 + i * (sector_size/2), &buffer[sector_size/4], (sector_size/2));
-			temp_total=(sector_size*3)/4;
-		}
-		for(int j=0;j<temp_total;j++)
-		{
-			DEV_DTO(*(buffer+pic_index_temp));
-			pic_index_temp++;
-		}
+		WRITEDK(23, 1);
+		WRITEDK(21, 1);
+		ets_delay_us(5);
+		WRITEDK(21, 0);
+		value <<= 1;
 	}
-	if(pic_index_temp==153599)
+	ets_delay_us(5);
+	WRITEDK(15,ESP32SET);
+}
+void  Write_DO(DK_T data)
+{
+	WRITEDK(15,ESP32SET);
+	WRITEDK(15,ESP32RESET);
+	WRITEDK(27,ESP32SET);
+	ets_delay_us(2);
+	WRITEDK(21, ESP32RESET);
+	for (int i = 0; i < 8; i++)
 	{
-		ESP_LOGW(my_tag,"pic_index=%d",pic_index_temp);
+		if ((data & 0x80) == 0)
+		WRITEDK(23, ESP32RESET);
+		else
+		WRITEDK(23, 1);
+		WRITEDK(21, 1);
+		ets_delay_us(2);
+		WRITEDK(21, ESP32RESET);
+		data <<= 1;
 	}
-}
-void  pic_dis_temp(int display_index,int picture_page_index)
-{
-	pic_index_temp=0;
-	epd_lut(0);
-	ereLocation();
-	DEV_CO(0x24);//write RAM for black(0)/white (1)
-	pic_Load_Data_temp(display_index,picture_page_index);
-
-	ereLocation();
-	DEV_CO(0x26);//write RAM for red(1)/white (0)
-	pic_Load_Data_temp(display_index,picture_page_index);
-}
-void display_picture_temp(int display_index,int picture_page_index)
-{
-	pic_dis_temp(display_index,picture_page_index);
-	reflesh_disp();
+	ets_delay_us(2);
+	WRITEDK(15,ESP32SET);
 }
 
-int pic_index=0;
-int times=0;
-void pic_Load_Data(char *buffer)
+void  Write_CT(DK_T value)
 {
-	if(times==18)
+	WRITEDK(4,ESP32SET);
+	WRITEDK(4,ESP32RESET);
+	WRITEDK(16,ESP32RESET);
+	ets_delay_us(5);
+	WRITEDK(21, 0);
+	for (int i = 0; i < 8; i++)
 	{
-		epd_lut(0);
-		ereLocation();
-		DEV_CO(0x24);//write RAM for black(0)/white (1)
-		for(int j=0;j<3072;j++)
-		{
-			DEV_DTO(*(buffer+pic_index));
-			pic_index++;
-		}
-		ESP_LOGW(my_tag,"pic_index=%d",pic_index);
-		ereLocation();
-		DEV_CO(0x26);//write RAM for red(1)/white (0)
-		for(int j=0;j<1024;j++)
-		{
-			DEV_DTO(*(buffer+pic_index));
-			pic_index++;
-		}
+		if ((value & 0x80) == 0)
+		WRITEDK(23, ESP32RESET);
+		else
+		WRITEDK(23, 1);
+		WRITEDK(21, 1);
+		ets_delay_us(5);
+		WRITEDK(21, 0);
+		value <<= 1;
 	}
-	else
-	{
-		for(int j=0;j<sizeof(buffer);j++)
-		{
-			DEV_DTO(*(buffer+pic_index));
-			pic_index++;
-		}
-	}
-	times++;
+	ets_delay_us(5);
+	WRITEDK(4,ESP32SET);
 }
-void  pic_dis(char *buffer)
+void  Write_DT(DK_T data)
 {
-	if(times<18)
+	WRITEDK(4,ESP32SET);
+	WRITEDK(4,ESP32RESET);
+	WRITEDK(16,ESP32SET);
+	ets_delay_us(2);
+	WRITEDK(21, ESP32RESET);
+	for (int i = 0; i < 8; i++)
 	{
-		epd_lut(0);
-		ereLocation();
-		DEV_CO(0x24);//write RAM for black(0)/white (1)
-		pic_Load_Data(buffer);
+		if ((data & 0x80) == 0)
+		WRITEDK(23, ESP32RESET);
+		else
+		WRITEDK(23, 1);
+		WRITEDK(21, 1);
+		ets_delay_us(2);
+		WRITEDK(21, ESP32RESET);
+		data <<= 1;
 	}
-	else if(times>19)
-	{
-		ereLocation();
-		DEV_CO(0x26);//write RAM for red(1)/white (0)
-		pic_Load_Data(buffer);
-	}
-	else
-	{
-		pic_Load_Data(buffer);
-	}
+	ets_delay_us(2);
+	WRITEDK(4,ESP32SET);
 }
-void display_picture(char *buffer)
+
+int READK(gpio_num_t g_num)
 {
-	pic_dis(buffer);
-	reflesh_disp();
+	int value=0;
+	value=ESP_VALUER(g_num);
+	return value;
 }
+void WRITEDK(gpio_num_t g_num,uint32_t value)
+{
+	ESP_VALUEW(g_num,value);
+}
+
+void HLUT(unsigned char * wavedata)
+{
+	unsigned int count;
+	unsigned int i;
+    unsigned char vcomlutnum,KWlutnum,Redlutnum;
+	unsigned char * tmpdata_p;
+	KWlutnum=*wavedata;
+	Redlutnum=*(wavedata+1);
+    vcomlutnum=Redlutnum;
+	wavedata+=2;
+	Write_CT(0x01);
+	Write_DT(0x37);
+	Write_DT(0x00);
+	Write_DT(*wavedata++);
+	Write_DT(*wavedata++);
+	Write_CT(0x30);
+	Write_DT(*wavedata++);
+	Write_CT(0x20);
+	for(count=0;count<11*vcomlutnum ;count++)Write_DT(*wavedata++);
+	for(i=0;i<(MAX_WAVE_NUM-vcomlutnum);i++){
+		for(count=0;count<11;count++)Write_DT(0);
+	}
+	Write_CT(0x21);
+	tmpdata_p=wavedata;
+	for(count=0;count<13*KWlutnum;count++)Write_DT(*wavedata++);
+	for(i=0;i<(MAX_WAVE_NUM-KWlutnum);i++){
+		for(count=0;count<13;count++)Write_DT(0);
+	}
+	Write_CT(0x22);
+	for(count=0;count<13*KWlutnum;count++)Write_DT(*wavedata++);
+	for(i=0;i<(MAX_WAVE_NUM-KWlutnum);i++){
+		for(count=0;count<13;count++)Write_DT(0);
+	}
+	Write_CT(0x23);
+	for(i=0;i<MAX_WAVE_NUM;i++){
+		for(count=0;count<13;count++)Write_DT(0);
+	}
+	Write_CT(0x24);
+	for(i=0;i<MAX_WAVE_NUM;i++){
+		for(count=0;count<13;count++)Write_DT(0);
+	}
+	Write_CT(0x25);
+	for(count=0;count<13*Redlutnum;count++)Write_DT(*wavedata++);
+	for(i=0;i<(MAX_WAVE_NUM-Redlutnum);i++){
+		for(count=0;count<13;count++)Write_DT(0);
+	}
+	Write_CT(0x26);
+	for(i=0;i<MAX_WAVE_NUM;i++){
+		for(count=0;count<13;count++)Write_DT(0);
+	}
+	Write_CT(0x27);
+	for(i=0;i<MAX_WAVE_NUM;i++){
+		for(count=0;count<13;count++)Write_DT(0);
+	}
+	Write_CT(0x28);
+	for(i=0;i<MAX_WAVE_NUM;i++){
+		for(count=0;count<13;count++)Write_DT(0);
+	}
+	Write_CT(0x29);
+	for(count=0;count<10*vcomlutnum;count++)Write_DT(*wavedata++);
+	for(i=0;i<(MAX_WAVE_NUM-vcomlutnum);i++){
+		for(count=0;count<10;count++)Write_DT(0);
+	}
+	DK_ByT();
+}
+void HLUTO(unsigned char * wavedata)
+{
+	unsigned int count;
+	unsigned int i;
+    unsigned char vcomlutnum,KWlutnum,Redlutnum;
+	unsigned char * tmpdata_p;
+	KWlutnum=*wavedata;
+	Redlutnum=*(wavedata+1);
+    vcomlutnum=Redlutnum;
+	wavedata+=2;
+	Write_CO(0x01);
+	Write_DO(0x37);
+	Write_DO(0x00);
+	Write_DO(*wavedata++);
+	Write_DO(*wavedata++);
+	Write_CO(0x30);
+	Write_DO(*wavedata++);
+	Write_CO(0x20);
+	for(count=0;count<11*vcomlutnum ;count++)Write_DO(*wavedata++);
+	for(i=0;i<(MAX_WAVE_NUM-vcomlutnum);i++){
+		for(count=0;count<11;count++)Write_DO(0);
+	}
+	Write_CO(0x21);
+	tmpdata_p=wavedata;
+	for(count=0;count<13*KWlutnum;count++)Write_DO(*wavedata++);
+	for(i=0;i<(MAX_WAVE_NUM-KWlutnum);i++){
+		for(count=0;count<13;count++)Write_DO(0);
+	}
+	Write_CO(0x22);
+	for(count=0;count<13*KWlutnum;count++)Write_DO(*wavedata++);
+	for(i=0;i<(MAX_WAVE_NUM-KWlutnum);i++){
+		for(count=0;count<13;count++)Write_DO(0);
+	}
+	Write_CO(0x23);
+	for(i=0;i<MAX_WAVE_NUM;i++){
+		for(count=0;count<13;count++)Write_DO(0);
+	}
+	Write_CO(0x24);
+	for(i=0;i<MAX_WAVE_NUM;i++){
+		for(count=0;count<13;count++)Write_DO(0);
+	}
+	Write_CO(0x25);
+	for(count=0;count<13*Redlutnum;count++)Write_DO(*wavedata++);
+	for(i=0;i<(MAX_WAVE_NUM-Redlutnum);i++){
+		for(count=0;count<13;count++)Write_DO(0);
+	}
+	Write_CO(0x26);
+	for(i=0;i<MAX_WAVE_NUM;i++){
+		for(count=0;count<13;count++)Write_DO(0);
+	}
+	Write_CO(0x27);
+	for(i=0;i<MAX_WAVE_NUM;i++){
+		for(count=0;count<13;count++)Write_DO(0);
+	}
+	Write_CO(0x28);
+	for(i=0;i<MAX_WAVE_NUM;i++){
+		for(count=0;count<13;count++)Write_DO(0);
+	}
+	Write_CO(0x29);
+	for(count=0;count<10*vcomlutnum;count++)Write_DO(*wavedata++);
+	for(i=0;i<(MAX_WAVE_NUM-vcomlutnum);i++){
+		for(count=0;count<10;count++)Write_DO(0);
+	}
+	DK_ByO();
+}
+
+void delay_ms(uint16_t value)
+{
+	vTaskDelay(value / portTICK_RATE_MS);
+}
+static const char *TAG = "EPD";
+
+void Hal_UpGraghScreen1(unsigned char * buffer1,unsigned char * buffer2,unsigned int num)
+{
+	unsigned int i;
+	unsigned char j,k;
+	unsigned char tempvalue;
+	unsigned char tempMono,tmpRed;
+	DK_ByT();
+	Write_CT(0x10);
+	for(i=0;i<num;i++)
+	{
+		if(buffer1==NULL)tempMono=0;
+		else tempMono=* buffer1++;
+		if(buffer2==NULL)tmpRed=0;
+		else tmpRed=* buffer2++;
+		for(k=0;k<4;k++)
+		{
+		   tempvalue=0;
+		   for(j=0;j<2;j++)
+		   {
+			  tempvalue <<= 4;
+			  if(tempMono&0x80)tempvalue&=0xf0;//black
+			  else
+			  {
+				if(tmpRed&0x80)tempvalue|=0x04;//red
+				else tempvalue|=0x03; //white
+			  }
+			  tempMono<<=1;
+			  tmpRed<<=1;
+		   }
+		   Write_DT(tempvalue);
+		}
+	}
+}
+
+void Hal_UpGraghScreen2(unsigned char * buffer1,unsigned char * buffer2,unsigned int num)
+{
+	unsigned int i;
+	unsigned char j;
+	unsigned char tempvalue,k;
+	unsigned char tempMono,tmpRed;
+	DK_ByO();
+	Write_CO(0x10);
+	for(i=0;i<num;i++)
+	{
+		if(buffer1==NULL)
+			tempMono=0;
+		else
+			tempMono=* buffer1++;
+		if(buffer2==NULL)
+			tmpRed=0;
+		else
+			tmpRed=* buffer2++;
+		for(k=0;k<4;k++)
+		{
+		   tempvalue=0;
+		   for(j=0;j<2;j++)
+		   {
+			  tempvalue<<=4;
+			  if(tempMono&0x80)
+		   	   	   tempvalue&=0xf0;//black
+			  else
+			  {
+				if(tmpRed&0x80)
+		   	   	   tempvalue|=0x04;//red
+				else
+		   	   	   tempvalue|=0x03;//white
+			  }
+			  tempMono<<=1;
+			  tmpRed<<=1;
+		   }
+
+//		   udpate van
+//		   tempvalue=0x33;//全白 0011
+//		   tempvalue=0x00;//全黑0000
+//		   tempvalue=0x44;//全红0100
+/**************************************/
+
+		   Write_DO(tempvalue);
+		}
+	}
+}
+
+//update van
+extern char BUFFER[4096];
+void Hal_UpGraghScreen3()
+{
+	unsigned int l;
+	unsigned char j,k;
+	unsigned char tempvalue;
+	unsigned char tempMono,temp;
+	for(l=0;l<4096;l++)
+	{
+		tempMono=BUFFER[l];
+		for(k=0;k<2;k++)
+		{
+			tempvalue=0xFF;
+			for(j=0;j<2;j++)
+			{
+				temp=tempMono;
+				temp&=0xC0;
+				if(j==0)
+				{
+					if(temp==0x00||temp==0x40)
+						temp|=0x0F;
+					if(temp==0xC0)
+						temp=(temp|0xFF)&0x3F;
+				 }
+				 else
+				 {
+					if(temp==0x00)
+						temp|=0xF0;
+					if(temp==0x40)
+						temp|=0xF4;
+					if(temp==0xC0)
+						temp=(temp|0xFF)&0xF3;
+				 }
+				tempMono<<=2;
+				tempvalue&=temp;
+			}
+			Write_DT(tempvalue);
+		}
+	}
+}
+void Hal_UpGraghScreen4()
+{
+	unsigned int l;
+	unsigned char j,k;
+	unsigned char tempvalue;
+	unsigned char tempMono,temp;
+	for(l=0;l<4096;l++)
+	{
+		tempMono=BUFFER[l];
+		for(k=0;k<2;k++)
+		{
+			tempvalue=0xFF;
+			for(j=0;j<2;j++)
+			{
+				temp=tempMono;
+				temp&=0xC0;
+				if(j==0)
+				{
+					if(temp==0x00||temp==0x40)
+						temp|=0x0F;
+					if(temp==0xC0)
+						temp=(temp|0xFF)&0x3F;
+				 }
+				 else
+				 {
+					if(temp==0x00)
+						temp|=0xF0;
+					if(temp==0x40)
+						temp|=0xF4;
+					if(temp==0xC0)
+						temp=(temp|0xFF)&0xF3;
+				 }
+				tempMono<<=2;
+				tempvalue&=temp;
+			}
+			Write_DO(0x44);
+		}
+	}
+}
+/********************************************/
+
+
+
+
+
+
+

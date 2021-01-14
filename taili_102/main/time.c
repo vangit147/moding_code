@@ -10,7 +10,7 @@ esp_timer_handle_t periodic_timer;
 static void periodic_timer_callback(void *arg)
 {
     esp_timer_stop(periodic_timer);
-    ESP_LOGE(timer_tag,"sleep");
+    ESP_LOGE(timer_tag,"deep sleep");
     ESP_LOGE(timer_tag,"start deep sleep: %lld us", esp_timer_get_time());
     esp_deep_sleep_start();
 }

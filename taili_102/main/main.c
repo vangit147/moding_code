@@ -19,9 +19,7 @@
 #include "driver/gpio.h"
 #include "driver/adc.h"
 #include "esp_adc_cal.h"
-
 #include "data_flash.h"
-
 #include "aenc.h"
 
 
@@ -67,6 +65,7 @@ extern void e_init(void);//10.2  台历
 extern esp_c_t  CN_Init(void);//5.65  拉环
 extern void Timer_Config(void);
 
+void LDK_init(void);
 
 //主函数入口相关内容初始化
 void app_main()
@@ -103,69 +102,79 @@ void app_main()
 //	 spi_flash_erase_sector(info_page+1);
 //	 spi_flash_erase_sector(info_page);
 
-	ESP_LOGW(my_tag,"wifi init_sta");
-	wifi_init_sta();
+
 
 //	ESP_LOGW(my_tag,"init timer");
 //	Timer_Config();
 
-//	ESP_LOGW(my_tag, "e_init");
+//	ESP_LOGW(my_tag, "e_init desk_calender 10.2 ");
 //	e_init();
-//	ESP_LOGW(my_tag, "CN_Init");
+//	ESP_LOGW(my_tag, "CN_Init 5.65 pull_ring screen");
 //	CN_Init();
+	ESP_LOGW(my_tag, "LDK_init desk_calender 7.5");
+	LDK_init();
 
 
 
+//	ESP_LOGW(my_tag, "read_write_init");
+//	read_write_init();
+//
+//	analysis_data();
+//
+//	ESP_LOGW(my_tag,"Get device information");
+//	getdeviceinfo();
 
-	ESP_LOGW(my_tag, "read_write_init");
-	read_write_init();
-
-	analysis_data();
-
-	ESP_LOGW(my_tag,"Get device information");
-	getdeviceinfo();
-
+	ESP_LOGE(timer_tag,"start deep sleep: %lld us", esp_timer_get_time());
+	ESP_LOGW(my_tag,"wifi init_sta");
+	wifi_init_sta();
 	ESP_LOGW(my_tag,"gattserver(ble) init");
 	GattServers_Init();
+	ESP_LOGE(timer_tag,"start deep sleep: %lld us", esp_timer_get_time());
 
-	ESP_LOGW(my_tag,"esp_ble_gap_config_adv_data");
-	esp_ble_gap_config_adv_data(&adv_data);
+//	ESP_LOGW(my_tag,"esp_ble_gap_config_adv_data");
+//	esp_ble_gap_config_adv_data(&adv_data);
 
 
 
-	ESP_LOGW(my_tag,"get voltage");
-	adc1_config_width(3);
-	adc1_config_channel_atten(6,3);
-	adc_chars = calloc(1,sizeof(esp_adc_cal_characteristics_t));
-	esp_adc_cal_characterize(1,3,3,1100,adc_chars);
-	voltage = esp_adc_cal_raw_to_voltage(adc1_get_raw(6),adc_chars)*2;
-	voltage=voltage/10;
-	ESP_LOGW(my_tag,"Voltage:%d",voltage);
-	vTaskDelay(1000/portTICK_RATE_MS);
+//	ESP_LOGW(my_tag,"get voltage");
+//	adc1_config_width(3);
+//	adc1_config_channel_atten(6,3);
+//	adc_chars = calloc(1,sizeof(esp_adc_cal_characteristics_t));
+//	esp_adc_cal_characterize(1,3,3,1100,adc_chars);
+//	voltage = esp_adc_cal_raw_to_voltage(adc1_get_raw(6),adc_chars)*2;
+////	voltage=voltage;
+//	ESP_LOGW(my_tag,"Voltage:%d",voltage);
+//	vTaskDelay(1000/portTICK_RATE_MS);
+//
+	gpio_wakeup_enable(GPIO_NUM_14,GPIO_INTR_LOW_LEVEL);
+//
+//	if(voltage<=220)
+//	{
+////		display_picture_temp(0,low_network_wifi_picture_page);
+//		ncolor_display(0,0x44);//red
+//		ESP_LOGW(my_tag,"low voltage ---> deep sleep start");
+//		esp_deep_sleep_start();
+//	}
+//	else
+//	{
+//		ESP_LOGW(my_tag,"find wakeup_cause");
+		find_wakeup_cause();
+//		check_wifi_httpdowload_pic('1');
+//		char *dwurl="https://aink.net/devices/resources/c4:4f:33:79:82:b3/20201201.bin";
+//		char *durl="https://aink.net/devices/download/pic/c4:4f:33:79:7a:eb?picname=20210101.bin&picsize=0&voltage=328&action=2&timestamp=1609430400";
+//		http_test_task(durl);
 
-	if(voltage<=220)
-	{
-//		display_picture_temp(0,low_network_wifi_picture_page);
-		ncolor_display(0,0x44);//red
-		ESP_LOGW(my_tag,"low voltage ---> deep sleep start");
-		esp_deep_sleep_start();
-	}
-	else
-	{
-		ESP_LOGW(my_tag,"find wakeup_cause");
-//		find_wakeup_cause();
-		check_wifi_httpdowload_pic('1');
-//		ncolor_display(0,0x44);
-	}
 
-	EventGroupHandler = xEventGroupCreate(); //创建事件标志组
-	//创建事件标志组处理任务
-	xTaskCreate((TaskFunction_t)eventgroup_task,
-				(const char *)"eventgroup_task",
-				(uint16_t)EVENTGROUP_STK_SIZE,
-				(void *)NULL,
-				(UBaseType_t)EVENTGROUP_TASK_PRIO,
-				(TaskHandle_t *)&EventGroupTask_Handler);
+
+//	}
+//	EventGroupHandler = xEventGroupCreate(); //创建事件标志组
+//	//创建事件标志组处理任务
+//	xTaskCreate((TaskFunction_t)eventgroup_task,
+//				(const char *)"eventgroup_task",
+//				(uint16_t)EVENTGROUP_STK_SIZE,
+//				(void *)NULL,
+//				(UBaseType_t)EVENTGROUP_TASK_PRIO,
+//				(TaskHandle_t *)&EventGroupTask_Handler);
 	return;
 }
 

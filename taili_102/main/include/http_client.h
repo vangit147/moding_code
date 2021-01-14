@@ -16,6 +16,7 @@
 #include "data_flash.h"
 
 char wakeup_cause;
+char BUFFER[4096];
 char PICNAME[20];
 unsigned char picture_index;
 
@@ -24,5 +25,12 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt);
 int http_test_task(char *dpwn_url);
 
 void search_dis_pic();
+
+typedef uint8_t   DK_T;
+extern void Hal_UpGraghScreen3();
+extern void  Write_CT(DK_T value);
+extern void DK_ByT(void);
+extern void DK_RTflesh(void);
+
 
 #endif

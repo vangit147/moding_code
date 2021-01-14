@@ -25,31 +25,49 @@ void find_wakeup_cause()
 			ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_EXT1(3)= %d",esp_sleep_get_wakeup_cause());
 			ESP_LOGW(my_tag,"wakeup by search next page ");
 			ESP_LOGW(my_tag,"download next page and display it");
-			check_wifi_httpdowload_pic('2');
+//			check_wifi_httpdowload_pic('2');
+
 			break;
 		case ESP_SLEEP_WAKEUP_EXT0:
 			ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_EXT0(2) = %d",esp_sleep_get_wakeup_cause());
 			ESP_LOGW(my_tag,"wakeup by search prev page");
 			ESP_LOGW(my_tag,"download prev page and display it");
-			check_wifi_httpdowload_pic('1');//下载上一页并显示
+//			check_wifi_httpdowload_pic('1');//下载上一页并显示
+
 			break;
 		case ESP_SLEEP_WAKEUP_TIMER:
 			ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_TIMER(4) = %d",esp_sleep_get_wakeup_cause());
 			ESP_LOGW(my_tag,"wakup by timer auto_update");//4
-			check_wifi_httpdowload_pic('0');
+//			check_wifi_httpdowload_pic('0');
+
 			break;
-		case ESP_SLEEP_WAKEUP_UNDEFINED:
+		case ESP_SLEEP_WAKEUP_GPIO:
 			ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_UNDEFINE(0) = %d",esp_sleep_get_wakeup_cause());
 			ESP_LOGW(my_tag,"wakup by manual update");//0
-			check_wifi_httpdowload_pic('0');//自动更新
+//			check_wifi_httpdowload_pic('1');//自动更新
+			break;
+		case ESP_SLEEP_WAKEUP_UNDEFINED:
 			break;
 		default:
 			ESP_LOGW(my_tag,"other wakeup cause ----> deep sleep start");
-			esp_deep_sleep_start();
+
 			break;
 	}
+
+
+	esp_sleep_enable_gpio_wakeup();
 	esp_sleep_enable_ext0_wakeup(0ULL<<0x00, 0);
 	esp_sleep_enable_ext1_wakeup(1ULL<<0x19, 0);
+	if(esp_sleep_get_wakeup_cause()==ESP_SLEEP_WAKEUP_GPIO)
+	{
+		ESP_LOGE(timer_tag,"light sleep");
+		esp_light_sleep_start();
+	}
+	else
+	{
+		ESP_LOGE(timer_tag,"deep sleep");
+		esp_light_sleep_start();
+	}
 }
 
 void read_write_init()
@@ -151,6 +169,7 @@ void updated_esp_time()
 	time_now=stime.tv_sec;
 	current_data.time_stamp=stime.tv_sec;
 	p=localtime(&time_now);
+	p->tm_hour=p->tm_hour+8;
 	ESP_LOGW(my_tag,"now it`s :%s",asctime(p));
 }
 
@@ -203,7 +222,6 @@ void check_wifi_httpdowload_pic(char wakeup_cause)
 //		inttostring(current_data.time_stamp,temp_time_stamp);
 		inttostring(default_time_stamp,temp_time_stamp);
 		temp_time_stamp[10]='\0';
-		printf("temp_time_stamp=%s\n",temp_time_stamp);
 		strcat(download_URL,temp_time_stamp);
 
 		ESP_LOGW(my_tag,"Request server try to get download_picture_name");
@@ -257,7 +275,7 @@ void cJSON_data(char *json_str)
 				{
 					failed_times=0;
 					ESP_LOGW(my_tag,"picture download failed (more than twice)");
-					display_picture_temp(1,low_network_wifi_picture_page);
+//					display_picture_temp(1,low_network_wifi_picture_page);
 					ESP_LOGW(my_tag,"go to sleep");
 					esp_deep_sleep_start();
 				}
@@ -273,15 +291,16 @@ void cJSON_data(char *json_str)
 			stime.tv_sec=item->valueint;
 			settimeofday(&stime,NULL);
 			printf("%s\n", cJSON_Print(item));
-			ESP_LOGW(my_tag,"%s:%d, and set ESP32 time done!!!!!", item->string,item->valueint);
+			printf("%ld\n", stime.tv_sec);
+			ESP_LOGW(my_tag,"%s:%ld:%d, and set ESP32 time done!!!!!", item->string,item->valuelong,item->valueint);
 			updated_esp_time();
 			updated_data_to_flash();
 
 			item = cJSON_GetObjectItem(root, "picname");
 			if(item!=NULL)
 			{
-//				while(failed_bit==0)
-				while(failed_times<=2)
+				while(failed_bit==0)
+//				while(failed_times<=2)
 				{
 					printf("%s\n", "get picname cJSON object:");
 					printf("%s\n", cJSON_Print(item));
@@ -351,8 +370,7 @@ void download_composite(cJSON * item)
 		ESP_LOGW(my_tag,"item->string=picname");
 		strcat(download_URL,current_data.server_add_to_downlo_pic);
 		charconnectuchar(download_URL,&device_info[8]);
-		download_URL[strlen(download_URL)]=QUES;
-		strcat(download_URL,picname);
+		download_URL[strlen(download_URL)]='/';
 		strcat(download_URL,item->valuestring);
 		ESP_LOGE(my_tag,"url=%s",download_URL);
 		http_test_task(download_URL);
@@ -422,7 +440,7 @@ void charconnectuchar(char a[],unsigned char b[])
 		p++;
 		if(j<5)
 		{
-			sprintf(p,"%c",':');
+			*p=':';
 			p++;
 		}
 	}
@@ -433,6 +451,7 @@ void charconnectuchar(char a[],unsigned char b[])
 		printf("arr[%d]=%c\n",j,arr[j]);
 	}
 }
+
 
 
 //使用定时器每次醒来执行不同的任务
