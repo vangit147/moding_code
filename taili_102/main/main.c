@@ -116,11 +116,11 @@ void app_main()
 
 
 
-//	ESP_LOGW(my_tag, "read_write_init");
-//	read_write_init();
-//
-//	analysis_data();
-//
+	ESP_LOGW(my_tag, "read_write_init");
+	read_write_init();
+
+	analysis_data();
+
 //	ESP_LOGW(my_tag,"Get device information");
 //	getdeviceinfo();
 
@@ -136,45 +136,45 @@ void app_main()
 
 
 
-//	ESP_LOGW(my_tag,"get voltage");
-//	adc1_config_width(3);
-//	adc1_config_channel_atten(6,3);
-//	adc_chars = calloc(1,sizeof(esp_adc_cal_characteristics_t));
-//	esp_adc_cal_characterize(1,3,3,1100,adc_chars);
-//	voltage = esp_adc_cal_raw_to_voltage(adc1_get_raw(6),adc_chars)*2;
-////	voltage=voltage;
-//	ESP_LOGW(my_tag,"Voltage:%d",voltage);
-//	vTaskDelay(1000/portTICK_RATE_MS);
-//
-	gpio_wakeup_enable(GPIO_NUM_14,GPIO_INTR_LOW_LEVEL);
-//
-//	if(voltage<=220)
-//	{
-////		display_picture_temp(0,low_network_wifi_picture_page);
-//		ncolor_display(0,0x44);//red
-//		ESP_LOGW(my_tag,"low voltage ---> deep sleep start");
-//		esp_deep_sleep_start();
-//	}
-//	else
-//	{
-//		ESP_LOGW(my_tag,"find wakeup_cause");
-		find_wakeup_cause();
-//		check_wifi_httpdowload_pic('1');
+	ESP_LOGW(my_tag,"get voltage");
+	adc1_config_width(3);
+	adc1_config_channel_atten(6,3);
+	adc_chars = calloc(1,sizeof(esp_adc_cal_characteristics_t));
+	esp_adc_cal_characterize(1,3,3,1100,adc_chars);
+	voltage = esp_adc_cal_raw_to_voltage(adc1_get_raw(6),adc_chars)*2;
+//	voltage=voltage;
+	ESP_LOGW(my_tag,"Voltage:%d",voltage);
+	vTaskDelay(1000/portTICK_RATE_MS);
+
+//	gpio_wakeup_enable(GPIO_NUM_14,GPIO_INTR_LOW_LEVEL);
+
+	if(voltage<=220)
+	{
+//		display_picture_temp(0,low_network_wifi_picture_page);
+		ncolor_display(0,0x44);//red
+		ESP_LOGW(my_tag,"low voltage ---> deep sleep start");
+		esp_deep_sleep_start();
+	}
+	else
+	{
+		ESP_LOGW(my_tag,"find wakeup_cause");
+//		find_wakeup_cause();
+		check_wifi_httpdownload_pic('0');
 //		char *dwurl="https://aink.net/devices/resources/c4:4f:33:79:82:b3/20201201.bin";
 //		char *durl="https://aink.net/devices/download/pic/c4:4f:33:79:7a:eb?picname=20210101.bin&picsize=0&voltage=328&action=2&timestamp=1609430400";
 //		http_test_task(durl);
 
 
 
-//	}
-//	EventGroupHandler = xEventGroupCreate(); //创建事件标志组
-//	//创建事件标志组处理任务
-//	xTaskCreate((TaskFunction_t)eventgroup_task,
-//				(const char *)"eventgroup_task",
-//				(uint16_t)EVENTGROUP_STK_SIZE,
-//				(void *)NULL,
-//				(UBaseType_t)EVENTGROUP_TASK_PRIO,
-//				(TaskHandle_t *)&EventGroupTask_Handler);
+	}
+	EventGroupHandler = xEventGroupCreate(); //创建事件标志组
+	//创建事件标志组处理任务
+	xTaskCreate((TaskFunction_t)eventgroup_task,
+				(const char *)"eventgroup_task",
+				(uint16_t)EVENTGROUP_STK_SIZE,
+				(void *)NULL,
+				(UBaseType_t)EVENTGROUP_TASK_PRIO,
+				(TaskHandle_t *)&EventGroupTask_Handler);
 	return;
 }
 

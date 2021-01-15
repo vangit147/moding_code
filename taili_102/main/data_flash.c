@@ -10,7 +10,6 @@ unsigned char wifi_config_page=0;
 char default_wifi_ssid[40]="moding_wifi";
 char default_wifi_pssd[40]="modingtech.com";
 long default_time_stamp=1609430400;// 2021/1/1  00:00:00
-char download_URL[200];
 unsigned char failed_bit=0;
 unsigned char failed_times=0;
 
@@ -182,51 +181,52 @@ void updated_data_to_flash()
 	ESP_LOGW(my_tag,"udpated data to flash 1280 1281 sector");
 }
 
-void check_wifi_httpdowload_pic(char wakeup_cause)
+void check_wifi_httpdownload_pic(char wakeup_cause)
 {
 	ESP_LOGW(my_tag,"isconnected=%d",isconnected);
 	if(isconnected)
 	{
-		memset(download_URL,'\0',200);
-		strcat(download_URL,current_data.server_add_get_down_pic);
-		charconnectuchar(download_URL,&device_info[8]);
-		download_URL[strlen(download_URL)]=QUES;
-		strcat(download_URL,picname);
+		memset(URL_download,'\0',200);
+		strcat(URL_download,current_data.server_add_get_down_pic);
+		charconnectuchar(URL_download,&device_info[8]);
+		URL_download[strlen(URL_download)]=QUES;
+		strcat(URL_download,picname);
 		if(wakeup_cause==0)
 		{
-			strcat(download_URL,current_data.pic_name_current);
+			strcat(URL_download,current_data.pic_name_current);
 		}
 		else
 		{
-			strcat(download_URL,current_data.pic_name);
+//			strcat(URL_download,current_data.pic_name);
+			strcat(URL_download,"20210101.bin");
 		}
-		download_URL[strlen(download_URL)]=AND;
-		strcat(download_URL,picsize);
+		URL_download[strlen(URL_download)]=AND;
+		strcat(URL_download,picsize);
 		char char_pic_number[2];
 		inttostring((int)current_data.pic_number,char_pic_number);
 		char_pic_number[1]='\0';
-		download_URL[strlen(download_URL)]=char_pic_number[0];
-		download_URL[strlen(download_URL)]=AND;
-		strcat(download_URL,Voltage);
+		URL_download[strlen(URL_download)]=char_pic_number[0];
+		URL_download[strlen(URL_download)]=AND;
+		strcat(URL_download,Voltage);
 		char char_voltage[4];
 		inttostring(328,char_voltage);
 		char_voltage[3]='\0';
-		strcat(download_URL,char_voltage);
-		download_URL[strlen(download_URL)]=AND;
-		strcat(download_URL,action);
-		download_URL[strlen(download_URL)]=wakeup_cause;
-		download_URL[strlen(download_URL)]=AND;
-		strcat(download_URL,timestamp);
+		strcat(URL_download,char_voltage);
+		URL_download[strlen(URL_download)]=AND;
+		strcat(URL_download,action);
+		URL_download[strlen(URL_download)]=wakeup_cause;
+		URL_download[strlen(URL_download)]=AND;
+		strcat(URL_download,timestamp);
 		char temp_time_stamp[50];
 //		inttostring(1234567890,temp_time_stamp);
 //		inttostring(current_data.time_stamp,temp_time_stamp);
 		inttostring(default_time_stamp,temp_time_stamp);
 		temp_time_stamp[10]='\0';
-		strcat(download_URL,temp_time_stamp);
+		strcat(URL_download,temp_time_stamp);
 
 		ESP_LOGW(my_tag,"Request server try to get download_picture_name");
-		ESP_LOGE(my_tag,"url=%s",download_URL);
-		http_test_task(download_URL);
+		ESP_LOGE(my_tag,"url=%s",URL_download);
+		http_test_task(URL_download);
 	}
 	else
 	{
@@ -253,11 +253,12 @@ void cJSON_data(char *json_str)
 //	char * json_str = "{\"timestame\":56325142,\"deletepic\":\"20201011.bin\",\"downloadlist\":[], \"lowvol\":\"lowvol.bin\", \"networkerr\":\"networkerr.bin\", \"qcode\":\"xx\"}";
 	struct timeval stime;
 	cJSON * root = NULL;
-	cJSON * item = NULL;
+	item = NULL;
 	root = cJSON_Parse(json_str);
 	if (!root)
 	{
 		printf("Error before: [%s]\n",cJSON_GetErrorPtr());
+		ESP_LOGI(my_tag,"deep sleep");
 	}
 	else
 	{
@@ -266,21 +267,33 @@ void cJSON_data(char *json_str)
 		{
 			if(strcmp(item->valuestring,"ok")==0)
 			{
-				failed_times=0;
-				failed_bit=1;
-			}
-			else
-			{
-				if(failed_times>2)
-				{
-					failed_times=0;
-					ESP_LOGW(my_tag,"picture download failed (more than twice)");
-//					display_picture_temp(1,low_network_wifi_picture_page);
-					ESP_LOGW(my_tag,"go to sleep");
-					esp_deep_sleep_start();
-				}
+				esp_http_client_close(client);
+				esp_http_client_cleanup(client);
+				ESP_LOGE(http_tag, "close http(s) cleanup client done");
+				ESP_LOGW(my_tag,"go to sleep");
+				esp_deep_sleep_start();
 			}
 		}
+//		item = cJSON_GetObjectItem(root, "succ");
+//		if(item!=NULL)
+//		{
+//			if(strcmp(item->valuestring,"ok")==0)
+//			{
+//				failed_times=0;
+//				failed_bit=1;
+//			}
+//			else
+//			{
+//				if(failed_times>2)
+//				{
+//					failed_times=0;
+//					ESP_LOGW(my_tag,"picture download failed (more than twice)");
+////					display_picture_temp(1,low_network_wifi_picture_page);
+//					ESP_LOGW(my_tag,"go to sleep");
+//					esp_deep_sleep_start();
+//				}
+//			}
+//		}
 		else
 		{
 			printf("%s\n", "cJSON(format):");
@@ -288,60 +301,67 @@ void cJSON_data(char *json_str)
 
 			printf("%s\n", "get timestamp cJSON object:");
 			item = cJSON_GetObjectItem(root, "timestamp");
-			stime.tv_sec=item->valueint;
-			settimeofday(&stime,NULL);
-			printf("%s\n", cJSON_Print(item));
-			printf("%ld\n", stime.tv_sec);
-			ESP_LOGW(my_tag,"%s:%ld:%d, and set ESP32 time done!!!!!", item->string,item->valuelong,item->valueint);
-			updated_esp_time();
-			updated_data_to_flash();
-
-			item = cJSON_GetObjectItem(root, "picname");
 			if(item!=NULL)
 			{
-				while(failed_bit==0)
-//				while(failed_times<=2)
+				stime.tv_sec=item->valueint;
+				settimeofday(&stime,NULL);
+				printf("%s\n", cJSON_Print(item));
+				printf("%ld\n", stime.tv_sec);
+				ESP_LOGW(my_tag,"%s:%ld:%d, and set ESP32 time done!!!!!", item->string,item->valuelong,item->valueint);
+				updated_esp_time();
+				updated_data_to_flash();
+			}
+
+				item = cJSON_GetObjectItem(root, "picname");
+				if(item!=NULL)
 				{
-					printf("%s\n", "get picname cJSON object:");
-					printf("%s\n", cJSON_Print(item));
-					failed_times++;
-					download_composite(item);
+	//				while(failed_bit==0)
+	////				while(failed_times<=2)
+	//				{
+						printf("%s\n", "get picname cJSON object:");
+						printf("%s\n", cJSON_Print(item));
+	//					failed_times++;
+	//				}
 				}
-			}
-			else
-			{
-				ESP_LOGW(my_tag,"picname is NULL,no need to download picture(s)");
-				ESP_LOGW(my_tag,"go to sleep");
-				esp_deep_sleep_start();
-			}
+				else
+				{
+					item = cJSON_GetObjectItem(root, "lowvol");
+					if(item!=NULL)
+					{
+						printf("%s\n", "get lowvol cJSON object :");
+						printf("%s\n", cJSON_Print(item));
+						ESP_LOGW(my_tag,"%s:%s", item->string,item->valuestring);
+					}
+					else
+					{
+						item = cJSON_GetObjectItem(root, "networkerr");
+						if(item!=NULL)
+						{
+							printf("%s\n", "get networkerr cJSON object :");
+							printf("%s\n", cJSON_Print(item));
+							ESP_LOGW(my_tag,"%s:%s", item->string,item->valuestring);
+						}
+						else
+						{
+							item = cJSON_GetObjectItem(root, "qcode");
+							if(item!=NULL)
+							{
+								printf("%s\n", "get qcode cJSON object :");
+								printf("%s\n", cJSON_Print(item));
+								ESP_LOGW(my_tag,"%s:%s", item->string,item->valuestring);
+							}
+							else
+							{
+								ESP_LOGW(my_tag,"picname is NULL,no need to download picture(s)");
+								ESP_LOGW(my_tag,"go to sleep");
+								esp_deep_sleep_start();
+							}
+						}
+					}
+				}
+				download_pic_url_composite(item);
 
-			item = cJSON_GetObjectItem(root, "lowvol");
-			if(item!=NULL)
-			{
-				printf("%s\n", "get lowvol cJSON object :");
-				printf("%s\n", cJSON_Print(item));
-				ESP_LOGW(my_tag,"%s:%s", item->string,item->valuestring);
-				download_composite(item);
 			}
-
-			item = cJSON_GetObjectItem(root, "networkerr");
-			if(item!=NULL)
-			{
-				printf("%s\n", "get networkerr cJSON object :");
-				printf("%s\n", cJSON_Print(item));
-				ESP_LOGW(my_tag,"%s:%s", item->string,item->valuestring);
-				download_composite(item);
-			}
-
-			item = cJSON_GetObjectItem(root, "qcode");
-			if(item!=NULL)
-			{
-				printf("%s\n", "get qcode cJSON object :");
-				printf("%s\n", cJSON_Print(item));
-				ESP_LOGW(my_tag,"%s:%s", item->string,item->valuestring);
-				download_composite(item);
-			}
-
 //			item = cJSON_GetObjectItem(root, "deletepic");
 //			if(item!=NULL)
 //			{
@@ -350,48 +370,64 @@ void cJSON_data(char *json_str)
 //				ESP_LOGW(my_tag,"%s:%s", item->string,item->valuestring);
 //				download_composite(item);
 //			}
-		}
+
 	}
 }
 
-void download_composite(cJSON * item)
+void download_pic_url_composite(cJSON * item)
 {
-	memset(download_URL,0,200);
+	memset(URL_download,0,200);
 	printf("%s\n",item->string);
 	printf("%s\n",item->valuestring);
-	if(strcmp(item->string,"deletepic")==0)
-	{
-		ESP_LOGW(my_tag,"item->string=deletepic");
-		strcat(download_URL,current_data.server_add_tell_dele_ok);
-
-	}
 	if(strcmp(item->string,"picname")==0||strcmp(item->string,"lowvol")||strcmp(item->string,"networkerr")||strcmp(item->string,"qcode"))
 	{
 		ESP_LOGW(my_tag,"item->string=picname");
-		strcat(download_URL,current_data.server_add_to_downlo_pic);
-		charconnectuchar(download_URL,&device_info[8]);
-		download_URL[strlen(download_URL)]='/';
-		strcat(download_URL,item->valuestring);
-		ESP_LOGE(my_tag,"url=%s",download_URL);
-		http_test_task(download_URL);
-
-		memset(download_URL,0,200);
-		strcat(download_URL,current_data.server_add_tell_down_ok);
+		strcat(URL_download,current_data.server_add_to_downlo_pic);
+		charconnectuchar(URL_download,&device_info[8]);
+		URL_download[strlen(URL_download)]='/';
+		strcat(URL_download,item->valuestring);
+		ESP_LOGE(my_tag,"url=%s",URL_download);
+//		http_test_task(URL_download);
 	}
-	charconnectuchar(download_URL,&device_info[8]);
-	download_URL[strlen(download_URL)]=QUES;
-	strcat(download_URL,picname);
-	strcat(download_URL,item->valuestring);
-	download_URL[strlen(download_URL)]=AND;
-	strcat(download_URL,timestamp);
+}
+
+void download_pic_finished_url_composite(cJSON * item,char *url_temp)
+{
+	printf("%s\n",item->string);
+	printf("%s\n",item->valuestring);
+	memset(URL_download,0,200);
+	strcat(URL_download,url_temp);
+	charconnectuchar(URL_download,&device_info[8]);
+	URL_download[strlen(URL_download)]=QUES;
+	strcat(URL_download,picname);
+	strcat(URL_download,item->valuestring);
+	URL_download[strlen(URL_download)]=AND;
+	strcat(URL_download,timestamp);
 	char temp_time_stamp[11];
 	inttostring(current_data.time_stamp,temp_time_stamp);
 	temp_time_stamp[10]='\0';
-	strcat(download_URL,temp_time_stamp);
-	ESP_LOGE(my_tag,"url=%s",download_URL);
-	http_test_task(download_URL);
+	strcat(URL_download,temp_time_stamp);
+	ESP_LOGE(my_tag,"url=%s",URL_download);
 }
 
+void delete_pic_finished_url_composite(cJSON * item)
+{
+	printf("%s\n",item->string);
+	printf("%s\n",item->valuestring);
+	memset(URL_download,0,200);
+	strcat(URL_download,current_data.server_add_tell_dele_ok);
+	charconnectuchar(URL_download,&device_info[8]);
+	URL_download[strlen(URL_download)]=QUES;
+	strcat(URL_download,picname);
+	strcat(URL_download,item->valuestring);
+	URL_download[strlen(URL_download)]=AND;
+	strcat(URL_download,timestamp);
+	char temp_time_stamp[11];
+	inttostring(current_data.time_stamp,temp_time_stamp);
+	temp_time_stamp[10]='\0';
+	strcat(URL_download,temp_time_stamp);
+	ESP_LOGE(my_tag,"url=%s",URL_download);
+}
 
 void inttostring(long value, char * output)
 {

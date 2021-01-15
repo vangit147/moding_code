@@ -48,17 +48,18 @@ int http_test_task(char *dpwn_url)
     	.url = dpwn_url,
         .event_handler = _http_event_handler,
     };
-
-    esp_http_client_handle_t client = esp_http_client_init(&config);
+while(1)
+{
+    client = esp_http_client_init(&config);
     esp_err_t err;
-    unsigned char failed_times=3;
-    while(failed_times)
+    unsigned char http_client_open_failed_times=3;
+    while(http_client_open_failed_times)
     {
     	if ((err = esp_http_client_open(client, 0)) != ESP_OK)
 		{
 			ESP_LOGE(http_tag, "Failed to open HTTP connection: %s", esp_err_to_name(err));
-			failed_times--;
-			if(failed_times==0)
+			http_client_open_failed_times--;
+			if(http_client_open_failed_times==0)
 			{
 				ESP_LOGE(http_tag, "Failed (tried 3 times) to open HTTP connection");
 				if(current_data.network_wrong_state==0)
@@ -117,15 +118,30 @@ int http_test_task(char *dpwn_url)
 				i++;
 			}
 		}
-		if (content_length <= 0)
+		if(esp_http_client_get_status_code(client)!=200)
 		{
-			ESP_LOGE(http_tag, "Error read data");
-			ESP_LOGW(http_tag,"sleep");
-			esp_deep_sleep_start();
+
+				ESP_LOGE(http_tag, " tried 3 times,  didn`t get json_data from server response");
+				esp_http_client_close(client);
+				esp_http_client_cleanup(client);
+				break;
 		}
 		else
 		{
 			cJSON_data(BUFFER);
+			if(esp_http_client_set_url(client,URL_download)!=ESP_OK)
+			{
+				ESP_LOGI(http_tag,"esp_http_set_url failed!!\n we will close current client and open a new one.");
+				ESP_LOGI(http_tag, "HTTP Stream reader Status = %d, content_length = %d",esp_http_client_get_status_code(client),esp_http_client_get_content_length(client));
+				esp_http_client_close(client);
+				esp_http_client_cleanup(client);
+				ESP_LOGE(http_tag, "close http(s) cleanup client done");
+				http_test_task(URL_download);
+			}
+			else
+			{
+				ESP_LOGI(http_tag,"esp_http_client_set_url done !");
+			}
 		}
     }
     else
@@ -176,12 +192,45 @@ int http_test_task(char *dpwn_url)
 			ESP_LOGI(http_tag, "read_times = %d", bytes_read);
 			ESP_LOGI(http_tag, "displayed picture %s ", current_data.pic_name_current);
 		}
+		if(esp_http_client_get_status_code(client)!=200)
+		{
+	    	failed_times++;
+	    	if(failed_times>2)
+			{
+				failed_times=0;
+				ESP_LOGW(my_tag,"picture download failed (more than twice)");
+				esp_http_client_close(client);
+				esp_http_client_cleanup(client);
+				ESP_LOGE(http_tag, "close http(s) cleanup client done");
+//					display_picture_temp(1,low_network_wifi_picture_page);
+				ESP_LOGW(my_tag,"go to sleep");
+				esp_deep_sleep_start();
+			}
+		}
+		else
+		{
+			download_pic_finished_url_composite(item,current_data.server_add_tell_down_ok);
+			if(esp_http_client_set_url(client,URL_download)!=ESP_OK)
+			{
+				ESP_LOGI(http_tag,"esp_http_set_url failed!!\n we will close current client and open a new one.");
+				ESP_LOGI(http_tag, "HTTP Stream reader Status = %d, content_length = %d",esp_http_client_get_status_code(client),esp_http_client_get_content_length(client));
+				esp_http_client_close(client);
+				esp_http_client_cleanup(client);
+				ESP_LOGE(http_tag, "close http(s) cleanup client done");
+				http_test_task(URL_download);
+			}
+			else
+			{
+				ESP_LOGI(http_tag,"esp_http_client_set_url done !");
+			}
+		}
     }
 
     ESP_LOGI(http_tag, "HTTP Stream reader Status = %d, content_length = %d",esp_http_client_get_status_code(client),esp_http_client_get_content_length(client));
-    esp_http_client_close(client);
-    esp_http_client_cleanup(client);
-    ESP_LOGE(http_tag, "close http(s) cleanup client done");
+//    esp_http_client_close(client);
+//    esp_http_client_cleanup(client);
+//    ESP_LOGE(http_tag, "close http(s) cleanup client done");
+}
     return 1;
 }
 
