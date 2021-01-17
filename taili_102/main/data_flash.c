@@ -16,59 +16,63 @@ unsigned char failed_times=0;
 
 
 
+
 void find_wakeup_cause()
 {
 	switch (esp_sleep_get_wakeup_cause())
 	{
 		case ESP_SLEEP_WAKEUP_EXT1:
-			ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_EXT1(3)= %d",esp_sleep_get_wakeup_cause());
+			ESP_LOGW(timer_tag,"esp_sleep_get_wakeup_cause=%d",esp_sleep_get_wakeup_cause());
 			ESP_LOGW(my_tag,"wakeup by search next page ");
 			ESP_LOGW(my_tag,"download next page and display it");
-//			check_wifi_httpdowload_pic('2');
-
+			check_wifi_httpdownload_pic('2');
 			break;
 		case ESP_SLEEP_WAKEUP_EXT0:
-			ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_EXT0(2) = %d",esp_sleep_get_wakeup_cause());
+			ESP_LOGW(timer_tag,"esp_sleep_get_wakeup_cause=%d",esp_sleep_get_wakeup_cause());
 			ESP_LOGW(my_tag,"wakeup by search prev page");
 			ESP_LOGW(my_tag,"download prev page and display it");
-//			check_wifi_httpdowload_pic('1');//下载上一页并显示
-
+			check_wifi_httpdownload_pic('1');//下载上一页并显示
 			break;
 		case ESP_SLEEP_WAKEUP_TIMER:
-			ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_TIMER(4) = %d",esp_sleep_get_wakeup_cause());
+			ESP_LOGW(timer_tag,"esp_sleep_get_wakeup_cause=%d",esp_sleep_get_wakeup_cause());
 			ESP_LOGW(my_tag,"wakup by timer auto_update");//4
-//			check_wifi_httpdowload_pic('0');
-
+			check_wifi_httpdownload_pic('0');
 			break;
 		case ESP_SLEEP_WAKEUP_GPIO:
-			ESP_LOGW(my_tag,"ESP_SLEEP_WAKEUP_UNDEFINE(0) = %d",esp_sleep_get_wakeup_cause());
+			ESP_LOGW(timer_tag,"esp_sleep_get_wakeup_cause=%d",esp_sleep_get_wakeup_cause());
 			ESP_LOGW(my_tag,"wakup by manual update");//0
-//			check_wifi_httpdowload_pic('1');//自动更新
+//			check_wifi_httpdownload_pic('1');//自动更新
 			break;
 		case ESP_SLEEP_WAKEUP_UNDEFINED:
+			ESP_LOGW(timer_tag,"esp_sleep_get_wakeup_cause=%d",esp_sleep_get_wakeup_cause());
 			break;
 		default:
 			ESP_LOGW(my_tag,"other wakeup cause ----> deep sleep start");
-
 			break;
 	}
 
+//	esp_sleep_enable_gpio_wakeup();
 
-	esp_sleep_enable_gpio_wakeup();
-	esp_sleep_enable_ext0_wakeup(0ULL<<0x00, 0);
-	esp_sleep_enable_ext1_wakeup(1ULL<<0x19, 0);
 	if(esp_sleep_get_wakeup_cause()==ESP_SLEEP_WAKEUP_GPIO)
 	{
-		ESP_LOGE(timer_tag,"light sleep");
+		ESP_LOGW(timer_tag,"light sleep");
 		esp_light_sleep_start();
 	}
 	else
 	{
-		ESP_LOGE(timer_tag,"deep sleep");
-		esp_light_sleep_start();
+		sleep_for_next_wakeup();
 	}
+
 }
 
+
+void sleep_for_next_wakeup()
+{
+	esp_sleep_enable_ext0_wakeup(0ULL<<0x00, 0);
+	esp_sleep_enable_ext1_wakeup(1ULL<<0x19, 0);
+	ESP_LOGW(my_tag,"Go to sleep immediately");
+	esp_deep_sleep_start();
+}
 void read_write_init()
 {
 	struct my_data data;
@@ -106,7 +110,7 @@ void init_default_data()
 	default_data.pic_number=0;
 	default_data.low_power_state=-1;
 	strcpy(default_data.pic_name,"20210101.bin");
-	strcpy(default_data.pic_name_current,"20210112.bin");
+	strcpy(default_data.pic_name_current,"20210116.bin");
 	strcpy(default_data.wifi_ssid,default_wifi_ssid);
 	strcpy(default_data.wifi_pssd,default_wifi_pssd);
 	strcpy(default_data.server_add_get_down_pic,"https://aink.net/devices/download/pic/");
@@ -133,12 +137,15 @@ void init_default_data()
 void analysis_data()
 {
 //	ESP_LOGW(my_tag,"sizeof(default_data)=%d",sizeof(data));
+	printf("\n");
+	ESP_LOGW(my_tag, "analysis data from sector 1280:");
 	spi_flash_read(info_page*sector_size,&current_data,sizeof(current_data));
 	ESP_LOGW(my_tag,"current_data.check_head[0]=%x",current_data.check_head[0]);
 	ESP_LOGW(my_tag,"current_data.check_head[1]=%x",current_data.check_head[1]);
 	ESP_LOGW(my_tag,"current_data.time_stamp=%ld",current_data.time_stamp);
 	ESP_LOGW(my_tag,"current_data.picture_time_stamp=%ld",current_data.picture_time_stamp);
 	ESP_LOGW(my_tag,"current_data.pic_name=%s",current_data.pic_name);
+	ESP_LOGW(my_tag,"current_data.pic_name_current=%s",current_data.pic_name_current);
 	ESP_LOGW(my_tag,"current_data.wifi_ssid=%s",current_data.wifi_ssid);
 	ESP_LOGW(my_tag,"current_data.wifi_pssd=%s",current_data.wifi_pssd);
 	ESP_LOGW(my_tag,"current_data.remain_space=%ld",current_data.remain_space);
@@ -149,7 +156,6 @@ void analysis_data()
 	ESP_LOGW(my_tag,"current_data.server_add_to_downlo_pic=%s",current_data.server_add_to_downlo_pic);
 	ESP_LOGW(my_tag,"current_data.check_tail[0]=%x",current_data.check_head[0]);
 	ESP_LOGW(my_tag,"current_data.check_tail[1]=%x",current_data.check_head[1]);
-	ESP_LOGW(my_tag,"get device nformation");
 //	unsigned char temp_data;
 //	for(int i=0;i<4096;i++)
 //	{
@@ -164,20 +170,50 @@ void analysis_data()
 
 void updated_esp_time()
 {
+	time(&now);
+	// Set timezone to China Standard Time
+	setenv("TZ", "CST-8", 1);
+	tzset();
+	localtime_r(&now, &timeinfo);
+	strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
+	ESP_LOGI(my_tag, "The current date/time in Shanghai is: %s", strftime_buf);
+
 	gettimeofday(&stime,NULL);
-	time_now=stime.tv_sec;
 	current_data.time_stamp=stime.tv_sec;
+	time_now=stime.tv_sec;
 	p=localtime(&time_now);
-	p->tm_hour=p->tm_hour+8;
-	ESP_LOGW(my_tag,"now it`s :%s",asctime(p));
+	printf("p->tm_hour=%d p->tm_min=%d p->tm_sec=%d ",p->tm_hour,p->tm_min,p->tm_sec);
+	if(p->tm_hour==12&&p->tm_min==59&&p->tm_sec>=20&&p->tm_sec<=59)
+	{
+		ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup(600*1000*1000));//10 minutes
+		ESP_LOGW(timer_tag,"After hours 10 minutes , it will be wakeup by timer");
+	}
+	else
+	{
+		int ti;
+		if(p->tm_hour<=12)
+		{
+			ti=12-p->tm_hour-1;
+			ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup((ti*60*60+(60-p->tm_min)*60+60-p->tm_sec)*1000*1000));
+			ESP_LOGW(timer_tag,"After %d hours %d minutes %d seconds , it will be wakeup by timer",ti,60-p->tm_min,60-p->tm_sec);
+		}
+		else
+		{
+			ti=36-p->tm_hour-1;
+			ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup((ti*60*60+(60-p->tm_min)*60+60-p->tm_sec)*1000*1000));
+			ESP_LOGW(timer_tag,"After %d hours %d minutes %d seconds , it will be wakeup by timer",ti,60-p->tm_min,60-p->tm_sec);
+		}
+	}
 }
 
 void updated_data_to_flash()
 {
+	updated_esp_time();
 	spi_flash_erase_sector(info_page);
 	spi_flash_erase_sector(info_page_backup);
 	spi_flash_write(info_page*4096,&current_data,sizeof(current_data));
 	spi_flash_write(info_page_backup*4096,&current_data,sizeof(current_data));
+	printf("\n");
 	ESP_LOGW(my_tag,"udpated data to flash 1280 1281 sector");
 }
 
@@ -197,19 +233,19 @@ void check_wifi_httpdownload_pic(char wakeup_cause)
 		}
 		else
 		{
-//			strcat(URL_download,current_data.pic_name);
-			strcat(URL_download,"20210101.bin");
+			strcat(URL_download,current_data.pic_name);
+//			strcat(URL_download,"20210101.bin");
 		}
 		URL_download[strlen(URL_download)]=AND;
 		strcat(URL_download,picsize);
 		char char_pic_number[2];
-		inttostring((int)current_data.pic_number,char_pic_number);
+		int_to_string((int)current_data.pic_number,char_pic_number);
 		char_pic_number[1]='\0';
 		URL_download[strlen(URL_download)]=char_pic_number[0];
 		URL_download[strlen(URL_download)]=AND;
 		strcat(URL_download,Voltage);
 		char char_voltage[4];
-		inttostring(328,char_voltage);
+		int_to_string(328,char_voltage);
 		char_voltage[3]='\0';
 		strcat(URL_download,char_voltage);
 		URL_download[strlen(URL_download)]=AND;
@@ -218,14 +254,14 @@ void check_wifi_httpdownload_pic(char wakeup_cause)
 		URL_download[strlen(URL_download)]=AND;
 		strcat(URL_download,timestamp);
 		char temp_time_stamp[50];
-//		inttostring(1234567890,temp_time_stamp);
-//		inttostring(current_data.time_stamp,temp_time_stamp);
-		inttostring(default_time_stamp,temp_time_stamp);
+//		int_to_string(1234567890,temp_time_stamp);
+//		int_to_string(current_data.time_stamp,temp_time_stamp);
+		int_to_string(default_time_stamp,temp_time_stamp);
 		temp_time_stamp[10]='\0';
 		strcat(URL_download,temp_time_stamp);
 
 		ESP_LOGW(my_tag,"Request server try to get download_picture_name");
-		ESP_LOGE(my_tag,"url=%s",URL_download);
+		ESP_LOGW(my_tag,"request_url=%s",URL_download);
 		http_test_task(URL_download);
 	}
 	else
@@ -233,17 +269,20 @@ void check_wifi_httpdownload_pic(char wakeup_cause)
 		if(strcmp(current_data.wifi_ssid,default_wifi_ssid)==0&&strcmp(current_data.wifi_pssd,default_wifi_pssd)==0)
 		{
 //			display_picture(2,low_network_wifi_picture_page);
-			ncolor_display(0,0x55);//yellow
+//			ncolor_display(0,0x55);//yellow
 			wifi_config_page=1;
-			getdeviceinfo();
-			esp_ble_gap_config_adv_data(&adv_data);
+			ESP_LOGW(my_tag,"wifi_config_page=%d",wifi_config_page);
+//			getdeviceinfo();
+//			esp_ble_gap_config_adv_data(&adv_data);
 		}
 		else
 		{
 //			display_picture(1,low_network_wifi_picture_page);
-			ncolor_display(0,0x33);//blue
+//			ncolor_display(0,0x33);//blue
+			ESP_LOGW(my_tag,"wifi_config_page=%d",wifi_config_page);
 		}
 		esp_timer_start_periodic(periodic_timer, 15*1000 * 1000);//三分钟后睡眠
+		ESP_LOGW(my_tag,"Go to sleep in three minutes");
 	}
 }
 
@@ -258,20 +297,21 @@ void cJSON_data(char *json_str)
 	if (!root)
 	{
 		printf("Error before: [%s]\n",cJSON_GetErrorPtr());
-		ESP_LOGI(my_tag,"deep sleep");
+		sleep_for_next_wakeup();
 	}
 	else
 	{
 		item = cJSON_GetObjectItem(root, "succ");
 		if(item!=NULL)
 		{
+			printf("%s\n", cJSON_Print(root));
 			if(strcmp(item->valuestring,"ok")==0)
 			{
+				ESP_LOGE(http_tag, "HTTP Stream reader Status = %d, content_length = %d",esp_http_client_get_status_code(client),esp_http_client_get_content_length(client));
 				esp_http_client_close(client);
 				esp_http_client_cleanup(client);
-				ESP_LOGE(http_tag, "close http(s) cleanup client done");
-				ESP_LOGW(my_tag,"go to sleep");
-				esp_deep_sleep_start();
+				ESP_LOGW(http_tag, "close http(s) cleanup client done");
+				sleep_for_next_wakeup();
 			}
 		}
 //		item = cJSON_GetObjectItem(root, "succ");
@@ -289,14 +329,12 @@ void cJSON_data(char *json_str)
 //					failed_times=0;
 //					ESP_LOGW(my_tag,"picture download failed (more than twice)");
 ////					display_picture_temp(1,low_network_wifi_picture_page);
-//					ESP_LOGW(my_tag,"go to sleep");
-//					esp_deep_sleep_start();
+//					sleep_for_next_wakeup();
 //				}
 //			}
 //		}
 		else
 		{
-			printf("%s\n", "cJSON(format):");
 			printf("%s\n", cJSON_Print(root));
 
 			printf("%s\n", "get timestamp cJSON object:");
@@ -307,9 +345,8 @@ void cJSON_data(char *json_str)
 				settimeofday(&stime,NULL);
 				printf("%s\n", cJSON_Print(item));
 				printf("%ld\n", stime.tv_sec);
-				ESP_LOGW(my_tag,"%s:%ld:%d, and set ESP32 time done!!!!!", item->string,item->valuelong,item->valueint);
 				updated_esp_time();
-				updated_data_to_flash();
+				ESP_LOGW(my_tag,"%s:%d, and set ESP32 time done!!!!!", item->string,item->valueint);
 			}
 
 				item = cJSON_GetObjectItem(root, "picname");
@@ -353,8 +390,7 @@ void cJSON_data(char *json_str)
 							else
 							{
 								ESP_LOGW(my_tag,"picname is NULL,no need to download picture(s)");
-								ESP_LOGW(my_tag,"go to sleep");
-								esp_deep_sleep_start();
+								sleep_for_next_wakeup();
 							}
 						}
 					}
@@ -377,24 +413,18 @@ void cJSON_data(char *json_str)
 void download_pic_url_composite(cJSON * item)
 {
 	memset(URL_download,0,200);
-	printf("%s\n",item->string);
-	printf("%s\n",item->valuestring);
-	if(strcmp(item->string,"picname")==0||strcmp(item->string,"lowvol")||strcmp(item->string,"networkerr")||strcmp(item->string,"qcode"))
-	{
-		ESP_LOGW(my_tag,"item->string=picname");
-		strcat(URL_download,current_data.server_add_to_downlo_pic);
-		charconnectuchar(URL_download,&device_info[8]);
-		URL_download[strlen(URL_download)]='/';
-		strcat(URL_download,item->valuestring);
-		ESP_LOGE(my_tag,"url=%s",URL_download);
+	ESP_LOGW(my_tag,"What picture do you want to download is %s",item->valuestring);
+	strcat(URL_download,current_data.server_add_to_downlo_pic);
+	charconnectuchar(URL_download,&device_info[8]);
+	URL_download[strlen(URL_download)]='/';
+	strcat(URL_download,item->valuestring);
+	ESP_LOGW(my_tag,"Your download address is %s",URL_download);
 //		http_test_task(URL_download);
-	}
 }
 
 void download_pic_finished_url_composite(cJSON * item,char *url_temp)
 {
-	printf("%s\n",item->string);
-	printf("%s\n",item->valuestring);
+	ESP_LOGW(my_tag,"The picture %s has been downloaded and displayed.",item->valuestring);
 	memset(URL_download,0,200);
 	strcat(URL_download,url_temp);
 	charconnectuchar(URL_download,&device_info[8]);
@@ -404,10 +434,10 @@ void download_pic_finished_url_composite(cJSON * item,char *url_temp)
 	URL_download[strlen(URL_download)]=AND;
 	strcat(URL_download,timestamp);
 	char temp_time_stamp[11];
-	inttostring(current_data.time_stamp,temp_time_stamp);
+	int_to_string(current_data.time_stamp,temp_time_stamp);
 	temp_time_stamp[10]='\0';
 	strcat(URL_download,temp_time_stamp);
-	ESP_LOGE(my_tag,"url=%s",URL_download);
+	ESP_LOGW(my_tag,"url=%s",URL_download);
 }
 
 void delete_pic_finished_url_composite(cJSON * item)
@@ -423,13 +453,13 @@ void delete_pic_finished_url_composite(cJSON * item)
 	URL_download[strlen(URL_download)]=AND;
 	strcat(URL_download,timestamp);
 	char temp_time_stamp[11];
-	inttostring(current_data.time_stamp,temp_time_stamp);
+	int_to_string(current_data.time_stamp,temp_time_stamp);
 	temp_time_stamp[10]='\0';
 	strcat(URL_download,temp_time_stamp);
-	ESP_LOGE(my_tag,"url=%s",URL_download);
+	ESP_LOGW(my_tag,"url=%s",URL_download);
 }
 
-void inttostring(long value, char * output)
+void int_to_string(long value, char * output)
 {
     int index = 0;
     char temp;
@@ -461,7 +491,7 @@ void charconnectuchar(char a[],unsigned char b[])
 	{
 		if(a[i]=='\0')
 		{
-			printf("i=%d\n",i);
+//			printf("i=%d\n",i);
 			break;
 		}
 		i++;
@@ -481,11 +511,11 @@ void charconnectuchar(char a[],unsigned char b[])
 		}
 	}
 	strcat(a,arr);
-	printf("j=%d\n",j);
-	for(j=0;j<18;j++)
-	{
-		printf("arr[%d]=%c\n",j,arr[j]);
-	}
+//	printf("j=%d\n",j);
+//	for(j=0;j<18;j++)
+//	{
+//		printf("arr[%d]=%c\n",j,arr[j]);
+//	}
 }
 
 
@@ -605,13 +635,12 @@ void charconnectuchar(char a[],unsigned char b[])
 //				}
 
 
-//void string2int(const char * string)
-//{
-//    int value = 0;
-//    int index = 0;
-//    for(;string[index] >= '0' && string[index] <= '9'; index ++)
-//    {
-//        value = value * 10 + string[index] - '0';
-//    }
-//    return value;
-//}
+int string_to_int(char * string,int index)
+{
+    int value = 0;
+    for(int i = 0;string[index] >= '0' && string[index] <= '9' && i<index; i++)
+    {
+        value = value * 10 + string[i] - '0';
+    }
+    return value;
+}

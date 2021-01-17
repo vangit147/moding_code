@@ -117,8 +117,8 @@ void wifi_init_sta(void)
 	/**************************/
      wifi_config_t wifi_config = {
          .sta = {
-             .ssid = "moding_wifi",
-             .password = "modingtech.com"},
+             .ssid = "Van",
+             .password = "van18595487020"},
      };
      ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
     /* 将事件处理程序注册到系统默认事件循环，分别是WiFi事件、IP地址事件及smartconfig事件 */

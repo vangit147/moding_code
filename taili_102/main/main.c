@@ -97,15 +97,14 @@ void app_main()
 
 
 
-
+//
 //	 spi_flash_erase_sector(composite_picture_page);
 //	 spi_flash_erase_sector(info_page+1);
 //	 spi_flash_erase_sector(info_page);
+//	 ESP_LOGE(my_tag,"erase sector 1280 1281 1342 done");
+//
 
 
-
-//	ESP_LOGW(my_tag,"init timer");
-//	Timer_Config();
 
 //	ESP_LOGW(my_tag, "e_init desk_calender 10.2 ");
 //	e_init();
@@ -114,19 +113,23 @@ void app_main()
 	ESP_LOGW(my_tag, "LDK_init desk_calender 7.5");
 	LDK_init();
 
-
+	ESP_LOGW(my_tag,"wifi init_sta");
+	wifi_init_sta();
 
 	ESP_LOGW(my_tag, "read_write_init");
 	read_write_init();
 
 	analysis_data();
 
+
+//	updated_esp_time();
+//	ESP_LOGW(my_tag,"init timer");
+//	Timer_Config();
 //	ESP_LOGW(my_tag,"Get device information");
 //	getdeviceinfo();
-
+//
 	ESP_LOGE(timer_tag,"start deep sleep: %lld us", esp_timer_get_time());
-	ESP_LOGW(my_tag,"wifi init_sta");
-	wifi_init_sta();
+
 	ESP_LOGW(my_tag,"gattserver(ble) init");
 	GattServers_Init();
 	ESP_LOGE(timer_tag,"start deep sleep: %lld us", esp_timer_get_time());
@@ -151,17 +154,17 @@ void app_main()
 	if(voltage<=220)
 	{
 //		display_picture_temp(0,low_network_wifi_picture_page);
-		ncolor_display(0,0x44);//red
+//		ncolor_display(0,0x44);//red
 		ESP_LOGW(my_tag,"low voltage ---> deep sleep start");
 		esp_deep_sleep_start();
 	}
 	else
 	{
 		ESP_LOGW(my_tag,"find wakeup_cause");
-//		find_wakeup_cause();
-		check_wifi_httpdownload_pic('0');
+		find_wakeup_cause();
+//		check_wifi_httpdownload_pic('0');
 //		char *dwurl="https://aink.net/devices/resources/c4:4f:33:79:82:b3/20201201.bin";
-//		char *durl="https://aink.net/devices/download/pic/c4:4f:33:79:7a:eb?picname=20210101.bin&picsize=0&voltage=328&action=2&timestamp=1609430400";
+//		char *durl="https://aink.net/devices/download/pic/c4:4f:33:79:7a:eb?picname=20210101.bin&picsize=0&voltage=328&action=1&timestamp=1609430400";
 //		http_test_task(durl);
 
 

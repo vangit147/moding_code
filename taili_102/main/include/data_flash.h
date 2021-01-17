@@ -21,6 +21,8 @@ char URL_download[200];
 
 void find_wakeup_cause();
 
+void sleep_for_next_wakeup();
+
 void read_write_init();
 
 void init_default_data();

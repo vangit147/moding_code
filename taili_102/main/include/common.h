@@ -29,6 +29,13 @@ struct tm *p;
 time_t time_now;
 struct timeval stime;
 
+
+time_t now;
+char strftime_buf[64];
+struct tm timeinfo;
+
+
+
 extern void display_picture(char *buffer);
 extern void display_picture_temp(int display_index,int picture_page_index);
 extern void ncolor_display(uint16_t index,unsigned char pic_data4);
@@ -106,6 +113,8 @@ struct my_data current_data;
 
 void cJSON_data(char *json_str);
 
-void inttostring(long value, char * output);
+void int_to_string(long value, char * output);
+
+int  string_to_int(char * string,int index);
 
 #endif
