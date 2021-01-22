@@ -1,51 +1,28 @@
-//Éî¶ÈË¯ÃßÊ±µçÁ÷ÊÇ6uA,À¶ÑÀwifi³õÊ¼»¯Ö®ºóµçÁ÷ÊÇ81.7ua
+//ï¿½ï¿½ï¿½Ë¯ï¿½ï¿½Ê±ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½6uA,ï¿½ï¿½ï¿½ï¿½wifiï¿½ï¿½Ê¼ï¿½ï¿½Ö®ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½81.7ua
 #include "esp_timer.h"
 #include "esp_log.h"
 #include "esp_sleep.h"
-#include "data_flash.h"
+#include "calendar.h"
 
 esp_timer_handle_t periodic_timer;
-#define timer_tag "timer"
+static const char *timer_tag = "timer";
 
-//¶¨Ê±Æ÷»Øµ÷º¯Êý
 static void periodic_timer_callback(void *arg)
 {
     esp_timer_stop(periodic_timer);
+    int64_t  time_run = esp_timer_get_time()/1000000;
+    ESP_LOGE(timer_tag,"start deep sleep: %lld s", time_run);
+    ESP_LOGW(timer_tag,"Perform function: sleep_for_next_wakeup()");
     sleep_for_next_wakeup();
 }
 
-
-//´´½¨ÖÜÆÚ¶¨Ê±Æ÷
 void Timer_Config(void)
 {
 	const esp_timer_create_args_t periodic_timer_args = {
 	        .callback = &periodic_timer_callback,
 	        .name = "periodic"};
     ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &periodic_timer));
-
-	time_now=stime.tv_sec;
-  	p=localtime(&time_now);
-  	printf("p->tm_hour=%d p->tm_min=%d p->tm_sec=%d ",p->tm_hour,p->tm_min,p->tm_sec);
-  	if(p->tm_hour==12&&p->tm_min==59&&p->tm_sec>=20&&p->tm_sec<=59)
-  	{
-  		ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup(600*1000*1000));//10 minutes
-  		ESP_LOGW(timer_tag,"After hours 10 minutes , it will be wakeup by timer");
-  	}
-  	else
-  	{
-  		int ti;
-  		if(p->tm_hour<=12)
-  		{
-  			ti=12-p->tm_hour;
-  			ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup((ti*60*60+(60-p->tm_min)*60+60-p->tm_sec)*1000*1000));
-  			ESP_LOGW(timer_tag,"After %d hours %d minutes %d seconds , it will be wakeup by timer",ti,60-p->tm_min,60-p->tm_sec);
-  		}
-  		else
-  		{
-  			ti=36-p->tm_hour;
-  			ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup((ti*60*60+(60-p->tm_min)*60+60-p->tm_sec)*1000*1000));
-  			ESP_LOGW(timer_tag,"After %d hours %d minutes %d seconds , it will be wakeup by timer",ti,60-p->tm_min,60-p->tm_sec);
-  		}
-  	}
+    ESP_LOGW(timer_tag,"set five minutes");
+    esp_timer_start_periodic(periodic_timer,300*1000 * 1000);
 }
 

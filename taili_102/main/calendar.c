@@ -1,5 +1,7 @@
-#include "data_flash.h"
+#include "calendar.h"
 
+
+static const char *my_tag = "calender";
 char *deletepic="deletepic=";
 char *picname="picname=";
 char *picsize="picsize=";
@@ -7,62 +9,48 @@ char *Voltage="voltage=";
 char *action="action=";
 char *timestamp="timestamp=";
 unsigned char wifi_config_page=0;
-char default_wifi_ssid[40]="moding_wifi";
-char default_wifi_pssd[40]="modingtech.com";
+char default_wifi_ssid[40]="van";
+char default_wifi_pssd[40]="1234567";
 long default_time_stamp=1609430400;// 2021/1/1  00:00:00
 unsigned char failed_bit=0;
 unsigned char failed_times=0;
-
-
-
-
+extern void Timer_Config(void);
 
 void find_wakeup_cause()
 {
+	ESP_LOGW(my_tag,"find wakeup_cause");
 	switch (esp_sleep_get_wakeup_cause())
 	{
 		case ESP_SLEEP_WAKEUP_EXT1:
-			ESP_LOGW(timer_tag,"esp_sleep_get_wakeup_cause=%d",esp_sleep_get_wakeup_cause());
-			ESP_LOGW(my_tag,"wakeup by search next page ");
-			ESP_LOGW(my_tag,"download next page and display it");
-			check_wifi_httpdownload_pic('2');
+			check_wifi_httpdownload_pic('2');//next page
 			break;
 		case ESP_SLEEP_WAKEUP_EXT0:
-			ESP_LOGW(timer_tag,"esp_sleep_get_wakeup_cause=%d",esp_sleep_get_wakeup_cause());
-			ESP_LOGW(my_tag,"wakeup by search prev page");
-			ESP_LOGW(my_tag,"download prev page and display it");
-			check_wifi_httpdownload_pic('1');//下载上一页并显示
+			check_wifi_httpdownload_pic('1');//prev page
 			break;
 		case ESP_SLEEP_WAKEUP_TIMER:
-			ESP_LOGW(timer_tag,"esp_sleep_get_wakeup_cause=%d",esp_sleep_get_wakeup_cause());
-			ESP_LOGW(my_tag,"wakup by timer auto_update");//4
-			check_wifi_httpdownload_pic('0');
+			check_wifi_httpdownload_pic('0');//auto_update by timer
 			break;
 		case ESP_SLEEP_WAKEUP_GPIO:
-			ESP_LOGW(timer_tag,"esp_sleep_get_wakeup_cause=%d",esp_sleep_get_wakeup_cause());
-			ESP_LOGW(my_tag,"wakup by manual update");//0
-//			check_wifi_httpdownload_pic('1');//自动更新
+			ESP_LOGW(my_tag,"wakup by manual update");
+//			check_wifi_httpdownload_pic('1');//update key
 			break;
 		case ESP_SLEEP_WAKEUP_UNDEFINED:
-			ESP_LOGW(timer_tag,"esp_sleep_get_wakeup_cause=%d",esp_sleep_get_wakeup_cause());
+			if(isconnected==0)
+			{
+				ESP_LOGW(my_tag,"Timer_Config()");
+				Timer_Config();
+
+				ESP_LOGW(my_tag,"gattserver(ble) init");
+				GattServers_Init();
+//				display picture network wrong
+//				display_low_network_wifi_picture(1);
+			}
 			break;
 		default:
 			ESP_LOGW(my_tag,"other wakeup cause ----> deep sleep start");
+			sleep_for_next_wakeup();
 			break;
 	}
-
-//	esp_sleep_enable_gpio_wakeup();
-
-	if(esp_sleep_get_wakeup_cause()==ESP_SLEEP_WAKEUP_GPIO)
-	{
-		ESP_LOGW(timer_tag,"light sleep");
-		esp_light_sleep_start();
-	}
-	else
-	{
-		sleep_for_next_wakeup();
-	}
-
 }
 
 
@@ -71,24 +59,25 @@ void sleep_for_next_wakeup()
 	esp_sleep_enable_ext0_wakeup(0ULL<<0x00, 0);
 	esp_sleep_enable_ext1_wakeup(1ULL<<0x19, 0);
 	ESP_LOGW(my_tag,"Go to sleep immediately");
+//	set_time_to_wakeup_by_timer(17,59);
 	esp_deep_sleep_start();
 }
+
 void read_write_init()
 {
-	struct my_data data;
-	memset(&data,0,sizeof(data));
-	spi_flash_read(info_page*sector_size,&data,sizeof(data));
-	if(data.check_head[0]==0x55&&data.check_head[1]==0x56&&data.check_tail[0]==0x55&&data.check_tail[1]==0x56)
+	memset(&current_data,0,sizeof(current_data));
+	spi_flash_read(info_page*sector_size,&current_data,sizeof(current_data));
+	if(current_data.check_head[0]==0x55&&current_data.check_head[1]==0x56&&current_data.check_tail[0]==0x55&&current_data.check_tail[1]==0x56)
 	{
 		 ESP_LOGW(my_tag, "Start Interpreting data");
 	}
 	else
 	{
-		memset(&data,0,sizeof(data));
-		spi_flash_read(info_page_backup*sector_size,&data,sizeof(data));
-		if(data.check_head[0]==0x55&&data.check_head[1]==0x56&&data.check_tail[0]==0x55&&data.check_tail[1]==0x56)
+		memset(&current_data,0,sizeof(current_data));
+		spi_flash_read(info_page_backup*sector_size,&current_data,sizeof(current_data));
+		if(current_data.check_head[0]==0x55&&current_data.check_head[1]==0x56&&current_data.check_tail[0]==0x55&&current_data.check_tail[1]==0x56)
 		{
-			spi_flash_write(info_page*sector_size,&data,sizeof(data));
+			spi_flash_write(info_page*sector_size,&current_data,sizeof(current_data));
 			ESP_LOGW(my_tag,"Data recovery complete");
 			read_write_init();
 		}
@@ -108,14 +97,14 @@ void init_default_data()
 	default_data.check_head[0]=0x55;
 	default_data.check_head[1]=0x56;
 	default_data.pic_number=0;
-	default_data.low_power_state=-1;
+	default_data.low_power_state=0;
 	strcpy(default_data.pic_name,"20210101.bin");
-	strcpy(default_data.pic_name_current,"20210116.bin");
+	strcpy(default_data.pic_name_current,"20210101.bin");
 	strcpy(default_data.wifi_ssid,default_wifi_ssid);
 	strcpy(default_data.wifi_pssd,default_wifi_pssd);
 	strcpy(default_data.server_add_get_down_pic,"https://aink.net/devices/download/pic/");
-	default_data.network_wrong_state=-1;
-	default_data.config_wifi_state=-1;
+	default_data.network_wrong_state=0;
+	default_data.config_wifi_state=0;
 	strcpy(default_data.server_add_tell_down_ok,"https://aink.net/devices/finished/pic/");
 	strcpy(default_data.server_add_tell_dele_ok,"https://aink.net/devices/deleted/pic/");
 	strcpy(default_data.server_add_to_downlo_pic,"https://aink.net/devices/resources/");
@@ -125,7 +114,7 @@ void init_default_data()
 	stime.tv_sec = 	default_data.time_stamp;
 	settimeofday(&stime,NULL);
 	default_data.picture_time_stamp=default_time_stamp;
-	default_data.remain_space=11534336-2*4*1024-picture_cap*(current_data.pic_number+current_data.low_power_state+current_data.config_wifi_state+current_data.network_wrong_state);
+	default_data.remain_space=11534336-2*4*1024-picture_cap*(default_data.pic_number+default_data.low_power_state+default_data.config_wifi_state+default_data.network_wrong_state);
 
 	spi_flash_erase_sector(info_page);
 	spi_flash_erase_sector(info_page_backup);
@@ -139,23 +128,26 @@ void analysis_data()
 //	ESP_LOGW(my_tag,"sizeof(default_data)=%d",sizeof(data));
 	printf("\n");
 	ESP_LOGW(my_tag, "analysis data from sector 1280:");
-	spi_flash_read(info_page*sector_size,&current_data,sizeof(current_data));
 	ESP_LOGW(my_tag,"current_data.check_head[0]=%x",current_data.check_head[0]);
 	ESP_LOGW(my_tag,"current_data.check_head[1]=%x",current_data.check_head[1]);
-	ESP_LOGW(my_tag,"current_data.time_stamp=%ld",current_data.time_stamp);
-	ESP_LOGW(my_tag,"current_data.picture_time_stamp=%ld",current_data.picture_time_stamp);
+	ESP_LOGW(my_tag,"current_data.pic_number=%d",current_data.pic_number);
+	ESP_LOGW(my_tag,"current_data.low_power_state=%d",current_data.low_power_state);
 	ESP_LOGW(my_tag,"current_data.pic_name=%s",current_data.pic_name);
 	ESP_LOGW(my_tag,"current_data.pic_name_current=%s",current_data.pic_name_current);
 	ESP_LOGW(my_tag,"current_data.wifi_ssid=%s",current_data.wifi_ssid);
 	ESP_LOGW(my_tag,"current_data.wifi_pssd=%s",current_data.wifi_pssd);
-	ESP_LOGW(my_tag,"current_data.remain_space=%ld",current_data.remain_space);
-	ESP_LOGW(my_tag,"current_data.pic_number=%d",current_data.pic_number);
 	ESP_LOGW(my_tag,"current_data.server_add_get_down_pic=%s",current_data.server_add_get_down_pic);
+	ESP_LOGW(my_tag,"current_data.network_wrong_state=%d",current_data.network_wrong_state);
+	ESP_LOGW(my_tag,"current_data.config_wifi_state=%d",current_data.config_wifi_state);
 	ESP_LOGW(my_tag,"current_data.server_add_tell_down_ok=%s",current_data.server_add_tell_down_ok);
 	ESP_LOGW(my_tag,"current_data.server_add_tell_dele_ok=%s",current_data.server_add_tell_dele_ok);
 	ESP_LOGW(my_tag,"current_data.server_add_to_downlo_pic=%s",current_data.server_add_to_downlo_pic);
 	ESP_LOGW(my_tag,"current_data.check_tail[0]=%x",current_data.check_head[0]);
 	ESP_LOGW(my_tag,"current_data.check_tail[1]=%x",current_data.check_head[1]);
+	ESP_LOGW(my_tag,"current_data.time_stamp=%ld",current_data.time_stamp);
+	ESP_LOGW(my_tag,"current_data.picture_time_stamp=%ld",current_data.picture_time_stamp);
+	ESP_LOGW(my_tag,"current_data.remain_space=%ld",current_data.remain_space);
+	printf("\n");
 //	unsigned char temp_data;
 //	for(int i=0;i<4096;i++)
 //	{
@@ -177,41 +169,60 @@ void updated_esp_time()
 	localtime_r(&now, &timeinfo);
 	strftime(strftime_buf, sizeof(strftime_buf), "%c", &timeinfo);
 	ESP_LOGI(my_tag, "The current date/time in Shanghai is: %s", strftime_buf);
-
+}
+void set_time_to_wakeup_by_timer(int hour,int min)
+{
 	gettimeofday(&stime,NULL);
 	current_data.time_stamp=stime.tv_sec;
 	time_now=stime.tv_sec;
 	p=localtime(&time_now);
 	printf("p->tm_hour=%d p->tm_min=%d p->tm_sec=%d ",p->tm_hour,p->tm_min,p->tm_sec);
-//	if(p->tm_hour==12&&p->tm_min==59&&p->tm_sec>=20&&p->tm_sec<=59)
-	int HOUR=12;
-	int MIN=0;
-	if(p->tm_hour==HOUR&&p->tm_min==MIN&&p->tm_sec>=20&&p->tm_sec<=59)
+	int temp_hour=0,temp_min=0,temp_second=0;
+	if(p->tm_hour>hour)
 	{
-		ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup(600*1000*1000));//10 minutes
-		ESP_LOGW(timer_tag,"After hours 10 minutes , it will be wakeup by timer");
+		temp_hour=24+hour-p->tm_hour-1;
+		temp_min=60-p->tm_min-1+min;
 	}
-	else if(p->tm_min<=MIN)
+	else if(p->tm_hour<hour)
 	{
-		int ti;
-		if(p->tm_hour<=HOUR)
-		{
-			ti=HOUR-p->tm_hour;
-			ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup((ti*60*60+(MIN-p->tm_min-1)*60+60-p->tm_sec)*1000*1000));
-			ESP_LOGW(timer_tag,"After %d hours %d minutes %d seconds , it will be wakeup by timer",ti,MIN-p->tm_min,60-p->tm_sec);
-		}
-		else
-		{
-			ti=24+HOUR-p->tm_hour;
-			ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup((ti*60*60+(MIN-p->tm_min-1)*60+60-p->tm_sec)*1000*1000));
-			ESP_LOGW(timer_tag,"After %d hours %d minutes %d seconds , it will be wakeup by timer",ti,MIN-p->tm_min,60-p->tm_sec);
-		}
+		temp_hour=hour-p->tm_hour-1;
+		temp_min=60-p->tm_min-1+min;
 	}
 	else
 	{
-		ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup((23*60*60+(60-p->tm_min-1)*60+60-p->tm_sec)*1000*1000));
-		ESP_LOGW(timer_tag,"After 23 hours %d minutes %d seconds , it will be wakeup by timer",(60-p->tm_min-1),60-p->tm_sec);
+		if(p->tm_min==min+1)
+		{
+			temp_hour=24+hour-p->tm_hour-1;
+			temp_min=60-p->tm_min-1-1+min;
+		}
+		else if(p->tm_min<min)
+		{
+			temp_hour=0;
+			temp_min=min-p->tm_min-1;
+		}
+		else if(p->tm_min==min)
+		{
+			if(p->tm_sec>0)
+			{
+				temp_hour=24+hour-p->tm_hour-1;
+				temp_min=60-p->tm_min-1+min;
+			}
+		}
+		else
+		{
+			temp_hour=24+hour-p->tm_hour-1;
+			temp_min=60-p->tm_min-1-1+min;
+		}
 	}
+	if(temp_min>=60)
+	{
+		temp_hour++;
+		temp_min-=60;
+	}
+	temp_second=60-p->tm_sec;
+	printf("%d\n",temp_hour*60*60+temp_min*60+temp_second);
+	ESP_ERROR_CHECK(esp_sleep_enable_timer_wakeup((uint64_t)(temp_hour*60*60+temp_min*60+temp_second)*1000*1000));
+	ESP_LOGW(my_tag,"After %d hours %d minutes %d seconds , it will be wakeup by timer",temp_hour,temp_min,temp_second);
 }
 
 void updated_data_to_flash()
@@ -227,12 +238,11 @@ void updated_data_to_flash()
 
 void check_wifi_httpdownload_pic(char wakeup_cause)
 {
-	ESP_LOGW(my_tag,"isconnected=%d",isconnected);
 	if(isconnected)
 	{
 		memset(URL_download,'\0',200);
 		strcat(URL_download,current_data.server_add_get_down_pic);
-		charconnectuchar(URL_download,&device_info[8]);
+		charconnectuchar(URL_download,&device_info[9]);
 		URL_download[strlen(URL_download)]=QUES;
 		strcat(URL_download,picname);
 		if(wakeup_cause==0)
@@ -242,7 +252,6 @@ void check_wifi_httpdownload_pic(char wakeup_cause)
 		else
 		{
 			strcat(URL_download,current_data.pic_name);
-//			strcat(URL_download,"20210101.bin");
 		}
 		URL_download[strlen(URL_download)]=AND;
 		strcat(URL_download,picsize);
@@ -262,35 +271,23 @@ void check_wifi_httpdownload_pic(char wakeup_cause)
 		URL_download[strlen(URL_download)]=AND;
 		strcat(URL_download,timestamp);
 		char temp_time_stamp[50];
-//		int_to_string(1234567890,temp_time_stamp);
-//		int_to_string(current_data.time_stamp,temp_time_stamp);
 		int_to_string(default_time_stamp,temp_time_stamp);
 		temp_time_stamp[10]='\0';
 		strcat(URL_download,temp_time_stamp);
 
-		ESP_LOGW(my_tag,"Request server try to get download_picture_name");
-		ESP_LOGW(my_tag,"request_url=%s",URL_download);
+//		ESP_LOGW(my_tag,"Request server try to get download_picture_name");
+//		ESP_LOGW(my_tag,"request_url=%s",URL_download);
 		http_test_task(URL_download);
 	}
 	else
 	{
-		if(strcmp(current_data.wifi_ssid,default_wifi_ssid)==0&&strcmp(current_data.wifi_pssd,default_wifi_pssd)==0)
-		{
-//			display_picture(2,low_network_wifi_picture_page);
-//			ncolor_display(0,0x55);//yellow
-			wifi_config_page=1;
-			ESP_LOGW(my_tag,"wifi_config_page=%d",wifi_config_page);
-//			getdeviceinfo();
-//			esp_ble_gap_config_adv_data(&adv_data);
-		}
-		else
-		{
-//			display_picture(1,low_network_wifi_picture_page);
-//			ncolor_display(0,0x33);//blue
-			ESP_LOGW(my_tag,"wifi_config_page=%d",wifi_config_page);
-		}
-		esp_timer_start_periodic(periodic_timer, 15*1000 * 1000);//三分钟后睡眠
-		ESP_LOGW(my_tag,"Go to sleep in three minutes");
+		ESP_LOGW(my_tag,"Timer_Config()");
+		Timer_Config();
+
+		ESP_LOGW(my_tag,"gattserver(ble) init");
+		GattServers_Init();
+//				display picture network wrong
+//				display_low_network_wifi_picture(1);
 	}
 }
 
@@ -315,10 +312,10 @@ void cJSON_data(char *json_str)
 			printf("%s\n", cJSON_Print(root));
 			if(strcmp(item->valuestring,"ok")==0)
 			{
-				ESP_LOGE(http_tag, "HTTP Stream reader Status = %d, content_length = %d",esp_http_client_get_status_code(client),esp_http_client_get_content_length(client));
+				ESP_LOGE(my_tag, "HTTP Stream reader Status = %d, content_length = %d",esp_http_client_get_status_code(client),esp_http_client_get_content_length(client));
 				esp_http_client_close(client);
 				esp_http_client_cleanup(client);
-				ESP_LOGW(http_tag, "close http(s) cleanup client done");
+				ESP_LOGW(my_tag, "close http(s) cleanup client done");
 				sleep_for_next_wakeup();
 			}
 		}
@@ -353,7 +350,9 @@ void cJSON_data(char *json_str)
 				settimeofday(&stime,NULL);
 				printf("%s\n", cJSON_Print(item));
 				printf("%ld\n", stime.tv_sec);
+				ESP_LOGE(my_tag,"start deep sleep: %lld us", esp_timer_get_time());
 				updated_esp_time();
+//				set_time_to_wakeup_by_timer(17,45);
 				ESP_LOGW(my_tag,"%s:%d, and set ESP32 time done!!!!!", item->string,item->valueint);
 			}
 
@@ -423,7 +422,7 @@ void download_pic_url_composite(cJSON * item)
 	memset(URL_download,0,200);
 	ESP_LOGW(my_tag,"What picture do you want to download is %s",item->valuestring);
 	strcat(URL_download,current_data.server_add_to_downlo_pic);
-	charconnectuchar(URL_download,&device_info[8]);
+	charconnectuchar(URL_download,&device_info[9]);
 	URL_download[strlen(URL_download)]='/';
 	strcat(URL_download,item->valuestring);
 	ESP_LOGW(my_tag,"Your download address is %s",URL_download);
@@ -435,7 +434,7 @@ void download_pic_finished_url_composite(cJSON * item,char *url_temp)
 	ESP_LOGW(my_tag,"The picture %s has been downloaded and displayed.",item->valuestring);
 	memset(URL_download,0,200);
 	strcat(URL_download,url_temp);
-	charconnectuchar(URL_download,&device_info[8]);
+	charconnectuchar(URL_download,&device_info[9]);
 	URL_download[strlen(URL_download)]=QUES;
 	strcat(URL_download,picname);
 	strcat(URL_download,item->valuestring);
@@ -454,7 +453,7 @@ void delete_pic_finished_url_composite(cJSON * item)
 	printf("%s\n",item->valuestring);
 	memset(URL_download,0,200);
 	strcat(URL_download,current_data.server_add_tell_dele_ok);
-	charconnectuchar(URL_download,&device_info[8]);
+	charconnectuchar(URL_download,&device_info[9]);
 	URL_download[strlen(URL_download)]=QUES;
 	strcat(URL_download,picname);
 	strcat(URL_download,item->valuestring);
@@ -494,7 +493,7 @@ void int_to_string(long value, char * output)
 
 void charconnectuchar(char a[],unsigned char b[])
 {
-	unsigned char i=0,j=0;
+	unsigned char i=0;
 	while(1)
 	{
 		if(a[i]=='\0')
@@ -507,9 +506,9 @@ void charconnectuchar(char a[],unsigned char b[])
 	char arr[18];
 	char *p=arr;
 	arr[17]='\0';
-	for(;j<6;j++)
+	for(unsigned char j=0;j<6;j++)
 	{
-		sprintf(p,"%x",b[j]);
+		sprintf(p,"%x",device_info[j+9]);
 		p++;
 		p++;
 		if(j<5)
@@ -526,65 +525,44 @@ void charconnectuchar(char a[],unsigned char b[])
 //	}
 }
 
+void mac_to_device_info()
+{
+	char arr[18];
+	char *p=arr;
+	arr[17]='\0';
+	for(unsigned char j=0;j<6;j++)
+	{
+		sprintf(p,"%x",device_info[j+9]);
+		p++;
+		p++;
+		if(j<5)
+		{
+			*p=':';
+			p++;
+		}
+	}
+	for(unsigned char j=0;j<17;j++)
+	{
+		device_info[j+9]=arr[j];
+//		printf("device_info_%d %c",j,device_info[j+9]);
+	}
+}
 
+int string_to_int(char * string,int index)
+{
+    int value = 0;
+    for(int i = 0;string[index] >= '0' && string[index] <= '9' && i<index; i++)
+    {
+        value = value * 10 + string[i] - '0';
+    }
+    return value;
+}
 
-//使用定时器每次醒来执行不同的任务
-//		esp_sleep_wakeup_cause_t my_cause=esp_sleep_get_wakeup_cause();
-//		ESP_LOGW(my_tag,"my_cause=%d",my_cause);
-//		unsigned char task;
-//		switch (esp_sleep_get_wakeup_cause())
-//		{
-//			case ESP_SLEEP_WAKEUP_UNDEFINED:
-//				printf("now wakeup\n");
-//				ESP_LOGW(my_tag,"init timer");
-//				Timer_Config();
-//				break;
-//			case ESP_SLEEP_WAKEUP_EXT1:
-//				spi_flash_read(composite_picture_page*4096+sizeof(unsigned char),&task, sizeof(unsigned char));
-//				printf("task=%x\n",task);
-//				if(task==0xff)
-//				{
-//					printf("first task\n");
-//					Timer_Config();
-//				}
-//				if(task==0x11)
-//				{
-//					printf("second task\n");
-//					Timer_Config();
-//				}
-//				if(task==0x22)
-//				{
-//					printf("third task\n");
-//					Timer_Config();
-//				}
-//				break;
-//			case ESP_SLEEP_WAKEUP_ALL:
-//				printf("here\n");
-//				break;
-//			default:
-//				ESP_LOGW(my_tag,"not sleep");
-//				break;
-//		}
+//void display_low_network_wifi_picture(unsigned char index)
+//{
+//
+//}
 
-
-//    unsigned char task;
-//    spi_flash_read(composite_picture_page*4096+sizeof(unsigned char),&task, sizeof(unsigned char));
-//    printf("task=%x\n",task);
-//    if(task==0xff)
-//    {
-//    	task=0x11;
-//    	sf_WriteBuffer((uint8_t *)&task, composite_picture_page*4096+sizeof(unsigned char), 1);
-//    }
-//    else if(task==0x11)
-//    {
-//    	task=0x22;
-//    	sf_WriteBuffer((uint8_t *)&task, composite_picture_page*4096+sizeof(unsigned char), 1);
-//    }
-//    else
-//    {
-//    	task=0xff;
-//    	sf_WriteBuffer((uint8_t *)&task, composite_picture_page*4096+sizeof(unsigned char), 1);
-//    }
 
 //	cJSON * item_temp = NULL;
 //	char temp_name[20];
@@ -643,12 +621,4 @@ void charconnectuchar(char a[],unsigned char b[])
 //				}
 
 
-int string_to_int(char * string,int index)
-{
-    int value = 0;
-    for(int i = 0;string[index] >= '0' && string[index] <= '9' && i<index; i++)
-    {
-        value = value * 10 + string[i] - '0';
-    }
-    return value;
-}
+

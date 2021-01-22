@@ -21,53 +21,22 @@
 #include "esp_wifi.h"
 #include "esp_err.h"
 #include "esp_spiffs.h"
-#include "http_client.h"
-#include "data_flash.h"
+#include "calendar.h"
 
-extern unsigned char flag[4096];
-char url_state=0;
-/************************************/
-extern int READ_BIT;
-extern int CLEAR_BIT;
-extern int DOWNLOAD_BIT;
-extern esp_vfs_spiffs_conf_t conf;
-extern QueueHandle_t Message_Queue; //信息队列句柄
-extern esp_timer_handle_t periodic_timer2;
-extern EventGroupHandle_t EventGroupHandler; //事件标志组句柄
-
+static const char *gatts_tag = "gatts";
+extern uint32_t voltage;
+esp_vfs_spiffs_conf_t conf;
 extern void ble_senddata(unsigned char *data);
 
-FILE *writefile;
 int write_id = 0;
-int remian_total; //剩余电量
-int time_count = 0;   //计时
-//char receive_data[200];
-unsigned char total = 0;
-unsigned int rec_data = 0;
 uint16_t data_conn_id = 0xffff;
 esp_gatt_if_t data_gatts_if = 0xff;
-//char download_url[100], file_name[32];
-//unsigned char device_info[] = {0x55, 0xfa, 0x0A, 0x03, 0x00, 0x34, 0x01, 0x01, 0x11, 0x22, 0x0A, 0x01, 0xfa, 0x55};
 
-#define GATTS_TAG "composite_DEMO"
-#define MY_TAG	"moding"
 
-//update van
-int url_length;
 
 char wifi_ssid_first[32];
 char wifi_pssd_first[64];
-char wifi_ssid_tmp[32]={0};
-char wifi_pssd_tmp[64]={0};
-char wifi_ssid_cache[32]={0};
-char wifi_pssd_cache[64]={0};
-char wifi_ssid_is_empty[32]={0};
-char wifi_pssd_is_empty[64]={0};
-char download_url_cache[200]={0};
-char download_url[200]={0}, file_name[40]={0};
 unsigned char device_info[26] = {0x00, 0x34, 0x01, 0x01, 0x11, 0x22, 0x0A, 0x01, 0x00,0x00,0x00,0x00,0x00,0x00};
-//unsigned char device_info[26] = {0x55, 0xfa, 0x0A, 0x03, 0x00, 0x34, 0x01, 0x01, 0x11, 0x22, 0x0A, 0x01, 0xfa, 0x55,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00};
-/*********************/
 
 
 //profile 处理事件
@@ -79,7 +48,7 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
 #define GATTS_NUM_HANDLE_TEST_A 4
 
 //定义设备名称
-#define TEST_DEVICE_NAME "Mdlahu"
+#define TEST_DEVICE_NAME "Mdaink"
 #define TEST_MANUFACTURER_DATA_LEN 17
 #define GATTS_DEMO_CHAR_VAL_LEN_MAX 0x40
 #define PREPARE_BUF_MAX_SIZE 1024
@@ -257,21 +226,21 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
         //advertising start complete event to indicate advertising start successfully or failed
         if (param->adv_start_cmpl.status != ESP_BT_STATUS_SUCCESS)
         {
-            ESP_LOGE(GATTS_TAG, "Advertising start failed\n");
+            ESP_LOGE(gatts_tag, "Advertising start failed\n");
         }
         break;
     case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT:
         if (param->adv_stop_cmpl.status != ESP_BT_STATUS_SUCCESS)
         {
-            ESP_LOGE(GATTS_TAG, "Advertising stop failed\n");
+            ESP_LOGE(gatts_tag, "Advertising stop failed\n");
         }
         else
         {
-            ESP_LOGI(GATTS_TAG, "Stop adv successfully\n");
+            ESP_LOGI(gatts_tag, "Stop adv successfully\n");
         }
         break;
     case ESP_GAP_BLE_UPDATE_CONN_PARAMS_EVT:
-        ESP_LOGI(GATTS_TAG, "update connection params status = %d, min_int = %d, max_int = %d,conn_int = %d,latency = %d, timeout = %d",
+        ESP_LOGI(gatts_tag, "update connection params status = %d, min_int = %d, max_int = %d,conn_int = %d,latency = %d, timeout = %d",
                  param->update_conn_params.status,
                  param->update_conn_params.min_int,
                  param->update_conn_params.max_int,
@@ -297,7 +266,7 @@ void example_write_event_env(esp_gatt_if_t gatts_if, prepare_type_env_t *prepare
                 prepare_write_env->prepare_len = 0;
                 if (prepare_write_env->prepare_buf == NULL)
                 {
-                    ESP_LOGE(GATTS_TAG, "Gatt_server prep no mem\n");
+                    ESP_LOGE(gatts_tag, "Gatt_server prep no mem\n");
                     status = ESP_GATT_NO_RESOURCES;
                 }
             }
@@ -321,7 +290,7 @@ void example_write_event_env(esp_gatt_if_t gatts_if, prepare_type_env_t *prepare
             esp_err_t response_err = esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, status, gatt_rsp);
             if (response_err != ESP_OK)
             {
-                ESP_LOGE(GATTS_TAG, "Send response error\n");
+                ESP_LOGE(gatts_tag, "Send response error\n");
             }
             free(gatt_rsp);
             if (status != ESP_GATT_OK)
@@ -344,291 +313,50 @@ void example_exec_write_event_env(prepare_type_env_t *prepare_write_env, esp_ble
 {
     if (param->exec_write.exec_write_flag == ESP_GATT_PREP_WRITE_EXEC)
     {
-        esp_log_buffer_hex(GATTS_TAG, prepare_write_env->prepare_buf, prepare_write_env->prepare_len);
+        esp_log_buffer_hex(gatts_tag, prepare_write_env->prepare_buf, prepare_write_env->prepare_len);
         printf("come here\n");
         if (prepare_write_env->prepare_buf[0] == 0x55 && prepare_write_env->prepare_buf[1] == 0xfa && prepare_write_env->prepare_buf[prepare_write_env->prepare_len - 1] == 0x55 && prepare_write_env->prepare_buf[prepare_write_env->prepare_len - 2] == 0xfa)
         {
-        	printf("come in \n");
             if (prepare_write_env->prepare_buf[3] == 0x01)
             {
-            	printf("come in 0x01 \n");
-#ifndef on_off
-//				 esp_timer_stop(periodic_timer_moding);
-#endif
+				wifi_config_t wifi_config;
+				bzero(&wifi_config, sizeof(wifi_config_t));
+				int j = 4 + prepare_write_env->prepare_buf[4] + 1;
+				memset(wifi_ssid_first,0,sizeof(wifi_ssid_first));
+				memset(wifi_pssd_first,0,sizeof(wifi_pssd_first));
+				memcpy(wifi_ssid_first, prepare_write_env->prepare_buf + 5, prepare_write_env->prepare_buf[4]);
+				memcpy(wifi_pssd_first, prepare_write_env->prepare_buf + 5 + prepare_write_env->prepare_buf[4] + 1, prepare_write_env->prepare_buf[j]);
+				ESP_LOGW(gatts_tag,"wifi_ssid_first_receive:%s", wifi_ssid_first);
+				ESP_LOGW(gatts_tag,"wifi_pssd_first_receive:%s", wifi_pssd_first);
 
-				 esp_timer_stop(periodic_timer);
-				 printf("wifi_config......\r\n");
-				 memcpy(current_data.wifi_ssid, prepare_write_env->prepare_buf + 5, prepare_write_env->prepare_buf[4]);
-				 int j = 4 + prepare_write_env->prepare_buf[4] + 1;
-				 memcpy(current_data.wifi_pssd, prepare_write_env->prepare_buf + 5 + prepare_write_env->prepare_buf[4] + 1, prepare_write_env->prepare_buf[j]);
-				 spi_flash_write(info_page*4096,&current_data,sizeof(current_data));
-				 ble_senddata(prepare_write_env->prepare_buf);
-				 ESP_LOGW(my_tag,"go to sleep");
-				 esp_deep_sleep_start();
-
-//				 esp_timer_stop(periodic_timer);
-//				 printf("wifi_connect......\r\n");
-
-//				wifi_config_t wifi_config;
-//				bzero(&wifi_config, sizeof(wifi_config_t));
-//				memcpy(wifi_config.sta.ssid, prepare_write_env->prepare_buf + 5, prepare_write_env->prepare_buf[4]);
-//				//memcpy(ssid, receive_buffer + 5, receive_buffer[4]);
-//				printf("ssid=%s\r\n", wifi_config.sta.ssid); //17
-//				int j = 4 + prepare_write_env->prepare_buf[4] + 1;
-//				memcpy(wifi_config.sta.password, prepare_write_env->prepare_buf + 5 + prepare_write_env->prepare_buf[4] + 1, prepare_write_env->prepare_buf[j]);
-//				//memcpy(pssd, receive_buffer + 5 + receive_buffer[4] + 1, receive_buffer[j]);
-//				printf("pssd=%s\r\n", wifi_config.sta.password);
-//				ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
-//				esp_wifi_disconnect();
-//				esp_wifi_connect();
-
-				//udpate van
-//				printf("/*******************prepare_buf****************************/\n");
-//				int j = 4 + prepare_write_env->prepare_buf[4] + 1;
-//				memset(wifi_ssid_first,0,sizeof(wifi_ssid_first));
-//				memset(wifi_pssd_first,0,sizeof(wifi_pssd_first));
-//				memcpy(wifi_ssid_first, prepare_write_env->prepare_buf + 5, prepare_write_env->prepare_buf[4]);
-//				printf("wifi_ssid_first=%s\r\n", wifi_ssid_first);
-//				memcpy(wifi_pssd_first, prepare_write_env->prepare_buf + 5 + prepare_write_env->prepare_buf[4] + 1, prepare_write_env->prepare_buf[j]);
-//			    printf("wifi_pssd_first=%s\r\n", wifi_pssd_first);
-//				if(strcmp(wifi_ssid_first,wifi_ssid_is_empty)&&strcmp(wifi_pssd_first,wifi_pssd_is_empty)&&(strcmp(wifi_ssid_tmp,wifi_ssid_first)||strcmp(wifi_pssd_tmp,wifi_pssd_first)))
-//				{
-//					strcpy(wifi_ssid_tmp, wifi_ssid_first);
-//					strcpy(wifi_pssd_tmp, wifi_pssd_first);
-//					printf("wifi_ssid_tmp=%s\r\n",wifi_ssid_tmp);
-//					printf("wifi_pssd_tmmp=%s\r\n",wifi_pssd_tmp);
-//					if(strcmp(wifi_ssid_cache,wifi_ssid_tmp)||strcmp(wifi_pssd_cache, wifi_pssd_tmp))
-//					{
-//					    wifi_config_t wifi_config;
-//						bzero(&wifi_config, sizeof(wifi_config_t));
-//						//需要再更改一下代码
-//						strcpy((char *)wifi_config.sta.ssid,wifi_ssid_tmp);
-//						strcpy((char *)wifi_config.sta.password,wifi_pssd_tmp);
-////						memcpy(wifi_config.sta.ssid, prepare_write_env->prepare_buf + 5, prepare_write_env->prepare_buf[4]);
-////						memcpy(wifi_config.sta.password, prepare_write_env->prepare_buf + 5 + prepare_write_env->prepare_buf[4] + 1, prepare_write_env->prepare_buf[j]);
-//						printf("ssid=%s\r\n", wifi_config.sta.ssid);
-//						printf("pssd=%s\r\n", wifi_config.sta.password);
-//						ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
-//						esp_wifi_disconnect();
-//						esp_wifi_connect();
-//						strcpy(wifi_ssid_cache, wifi_ssid_tmp);
-//						strcpy(wifi_pssd_cache, wifi_pssd_tmp);
-//						printf("wifi_ssid_cache=%s\r\n",wifi_ssid_cache);
-//					    printf("wifi_pssd_cache=%s\r\n",wifi_pssd_cache);
-//					}
-//				}
-				/***********************************************************/
-
-//				ble_senddata(prepare_write_env->prepare_buf);
-//				ESP_LOGI(GATTS_TAG, "open timer");
-//	            esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
-            }
-            else if (prepare_write_env->prepare_buf[3] == 0x02)
-            {
-#ifndef on_off
-//				 esp_timer_stop(periodic_timer_moding);
-#endif
-                esp_timer_stop(periodic_timer);
-                ESP_LOGI(GATTS_TAG, "httpdownload");
-//                char filenum = prepare_write_env->prepare_buf[4]; //下载文件个数
-                int download_len = prepare_write_env->prepare_buf[5];
-                int file_name_len = prepare_write_env->prepare_buf[6];
-                ESP_LOGI(GATTS_TAG, "download_len= %d", download_len);
-				ESP_LOGI(GATTS_TAG, "file_name_len= %d", file_name_len);
-//              memset(download_url, 0, 100);
-//				memcpy(download_url, prepare_write_env->prepare_buf + 6, download_len);
-//				download_url[download_len] = 0;
-//				memcpy(file_name, (char *)(prepare_write_env->prepare_buf + 6 + download_len + 1), prepare_write_env->prepare_buf[6 + download_len]);
-//				if (isconnected == 1)
-//				{
-//					ESP_LOGI(GATTS_TAG, "setbits");
-//					xEventGroupSetBits(EventGroupHandler, DOWNLOAD_BIT);
-//				}
-//				else
-//				{
-//					ESP_LOGI(GATTS_TAG, "wifi not connect");
-//					xEventGroupClearBits(EventGroupHandler, DOWNLOAD_BIT);
-//				}
-
-				/*******************************************************/
-				//update van
-                memset(download_url_cache, 0, 200);
-			    url_length=download_len;
-			    memcpy(download_url_cache, prepare_write_env->prepare_buf + 6, download_len);
-			    ESP_LOGI(GATTS_TAG, "download_url_cache= %s", download_url_cache);
-			    ESP_LOGI(GATTS_TAG, "download_url= %s", download_url);
-				if((strcmp(download_url,download_url_cache) && url_state<2) && download_len>0)
+				if(strcmp((char *)wifi_config.sta.ssid,wifi_ssid_first)&&strcmp((char *)wifi_config.sta.password,wifi_pssd_first)&&isconnected==0)
 				{
-					memset(download_url, 0, 200);
-					memcpy(download_url, prepare_write_env->prepare_buf + 6, download_len);
-					download_url[download_len] = 0;
-					memset(file_name, 0, 40);
-					memcpy(file_name, (char *)(prepare_write_env->prepare_buf + 6 + download_len + 1), prepare_write_env->prepare_buf[6 + download_len]);
-					ESP_LOGI(GATTS_TAG, "file_name= %s", file_name);
-					if (isconnected == 1)
-					{
-						ESP_LOGI(GATTS_TAG, "setbits");
-						xEventGroupSetBits(EventGroupHandler, DOWNLOAD_BIT);
-					}
-					else
-					{
-						ESP_LOGI(GATTS_TAG, "wifi not connect");
-						xEventGroupClearBits(EventGroupHandler, DOWNLOAD_BIT);
-					}
+					strcpy((char *)wifi_config.sta.ssid,wifi_ssid_first);
+					strcpy((char *)wifi_config.sta.password,wifi_pssd_first);
+					strcpy(current_data.wifi_ssid,(char *)wifi_config.sta.ssid);
+					strcpy(current_data.wifi_pssd,(char *)wifi_config.sta.password);
+					updated_data_to_flash();
+					ESP_LOGW(gatts_tag,"current_data.wifi_ssid:%s", current_data.wifi_ssid);
+					ESP_LOGW(gatts_tag,"current_data.wifi_pssd:%s", current_data.wifi_pssd);
+					ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
+					esp_wifi_disconnect();
+					esp_wifi_connect();
 				}
-				else
+				ble_senddata(prepare_write_env->prepare_buf);
+				if(isconnected==1)
 				{
+					wifi_config_page=1;
 					getdeviceinfo();
-					esp_ble_gap_config_adv_data(&adv_data);//图片完成后广播
+					esp_ble_gap_config_adv_data(&adv_data);
+					check_wifi_httpdownload_pic('0');
+//					sleep_for_next_wakeup();
 				}
-				/*******************************************************/
-                //将收到的数据返回给微信小程序
-                ble_senddata(prepare_write_env->prepare_buf);
             }
-            else if (prepare_write_env->prepare_buf[3] == 0x07)
-		   {//display picture what you want
-#ifdef on_off
-				esp_timer_stop(periodic_timer);
-				char pic_name[40];
-				memset(pic_name, 0, 40);
-				int pic_name_length=prepare_write_env->prepare_buf[4];
-				memcpy(pic_name, prepare_write_env->prepare_buf + 5, pic_name_length);
-				ESP_LOGW(MY_TAG,"the picture what you want to display is %s",pic_name);
-				ble_senddata(prepare_write_env->prepare_buf);
-				int ret=search_in_flash(pic_name,0x07,134400);
-				ESP_LOGW(MY_TAG, "search_in_flash(pic_name,0x07,134400)=%d",ret);
-                ESP_LOGI(GATTS_TAG, "open timer");
-               	esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
-
-#endif
-		   }
-			else if(prepare_write_env->prepare_buf[3] == 0x08)
-			{
-#ifdef on_off
-				esp_timer_stop(periodic_timer);
-				//是否轮询显示图片
-//				pic_is_loop_display=prepare_write_env->prepare_buf[4];
-				ESP_LOGW(MY_TAG,"pic_is_loop_display=%d\n",pic_is_loop_display);
-				getdeviceinfo();
-//				sf_WriteBuffer(&pic_is_loop_display, info_page * 4096+ 81*50, sizeof(unsigned char));
-				esp_ble_gap_config_adv_data(&adv_data);//图片完成后广播
-				spi_flash_read(info_page * 4096,&flag,4096);
-				if(flag[1]==0xaa&&flag[5]==0xaa)
-				{
-					flag[2]=0x11;
-					flag[3]=prepare_write_env->prepare_buf[5];
-					flag[4]=prepare_write_env->prepare_buf[6];
-					spi_flash_erase_sector(info_page);
-					spi_flash_write(info_page * 4096, &flag, 4096);
-					spi_flash_read(info_page * 4096,&flag,4096);
-					ESP_LOGW(MY_TAG,"flag 1~5 :");
-					for(int i=1;i<=5;i++)
-					{
-						ESP_LOGW(MY_TAG,"flag[%d]=%x",i,flag[i]);
-					}
-				}
-				loop_display_picture(prepare_write_env->prepare_buf[4]);
-				if(prepare_write_env->prepare_buf[4] == 0x00)
-				{
-					ESP_LOGI(GATTS_TAG, "open timer");
-					esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
-				}
-				else
-				{
-					ESP_LOGW(MY_TAG, "display_finished open timer 4s");
-					esp_timer_start_periodic(periodic_timer, 4*1000 * 1000);
-				}
-#endif
-		   }
-            else if (prepare_write_env->prepare_buf[3] == 0x09)
-            {//delete picture what you want
-#ifdef on_off
-				esp_timer_stop(periodic_timer);
-				unsigned char temp;
-				unsigned char picnum;
-				unsigned char picture_num_real; //实际图片数量
-				char temp_name[40];
-				char pic_name[40];
-				memset(pic_name, 0, 40);
-				memset(temp_name, 0, 40);
-				int pic_name_length=prepare_write_env->prepare_buf[4];
-				ble_senddata(prepare_write_env->prepare_buf);
-				memcpy(pic_name, prepare_write_env->prepare_buf + 5, pic_name_length);
-				ESP_LOGW(MY_TAG,"pic_name=%s",pic_name);
-				spi_flash_read(info_page * 4096, &picnum, sizeof(unsigned char));
-				spi_flash_read(info_reboot_times * 4096, &picture_num_real, sizeof(unsigned char));
-				ESP_LOGW(MY_TAG,"picture_num_real=%d",picture_num_real);
-				if(picnum==0xff)
-				{
-					picnum=0;
-				}
-				ESP_LOGW(MY_TAG,"picnum=%d",picnum);
-				unsigned char i=1;
-				if(i>picnum&&picnum==0)
-				{
-					ESP_LOGW(MY_TAG,"flash no pic to let you delete");
-				}
-				else
-				{
-					for (; i <= picnum; i++)
-					{
-						spi_flash_read(info_page * 4096 + i * 50, temp_name, 40*sizeof(unsigned char));
-						if(i>picture_num_real)
-						{
-							temp_name[39]='\0';
-							ESP_LOGW(MY_TAG,"temp_name=%s",temp_file_name);
-							if(strcmp(temp_name,temp_file_name)==0)
-							{
-								ESP_LOGW(MY_TAG,"no picture what you want to delete");
-								break;
-							}
-						}
-						if (strcmp(temp_name, pic_name) == 0) //有重名文件
-						{
-							ESP_LOGW(MY_TAG,"find picture what you want to delete: %s",temp_name);
-							spi_flash_read(info_page * 4096 + i * 50 + 40, &temp, sizeof(unsigned char));
-							ESP_LOGW(MY_TAG,"first read temp=%d i=%d",temp,i);
-							if(temp==0)
-							{
-								ESP_LOGE(MY_TAG,"picture which is %d in flash was deleted already ",i);
-								break;
-							}
-							unsigned char temp=0;
-							sf_WriteBuffer(&temp, info_page * 4096 + i * 50 + 40, sizeof(unsigned char));
-							spi_flash_read(info_page * 4096 + i * 50 + 40, &temp, sizeof(unsigned char));
-							ESP_LOGW(MY_TAG,"after delete pic read temp=%d i=%d",temp,i);
-							break;
-						}
-					}
-				}
-				getdeviceinfo();
-				esp_ble_gap_config_adv_data(&adv_data);//图片完成后广播
-				ESP_LOGW(MY_TAG,"CLEAR ONE PIC: esp_ble_gap_config_adv_data(&adv_data)");
-				ESP_LOGI(MY_TAG, "open timer");
-				esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
-#endif
-			}
-            else if(prepare_write_env->prepare_buf[3]==0x10)
-			{//get and set time from network
-            	union longstrvalue{
-					char time_sec[4];
-					long i;
-				}longstr;
-				longstr.time_sec[0]=receive_buffer[4];
-				longstr.time_sec[1]=receive_buffer[5];
-				longstr.time_sec[2]=receive_buffer[6];
-				longstr.time_sec[3]=receive_buffer[7];
-				ESP_LOGW(MY_TAG,"time_sec[0]=%x,time_sec[1]=%x,time_sec[2]=%x,time_sec[3]=%x ",longstr.time_sec[0],longstr.time_sec[1],longstr.time_sec[2],longstr.time_sec[3]);
-				ESP_LOGW(MY_TAG,"longstr.i=%ld",longstr.i);
-//				update_set_time(longstr.i);
-				ESP_LOGI(GATTS_TAG, "open timer");
-				esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
-		   }
         }
     }
     else
     {
-        ESP_LOGI(GATTS_TAG, "ESP_GATT_PREP_WRITE_CANCEL");
+        ESP_LOGI(gatts_tag, "ESP_GATT_PREP_WRITE_CANCEL");
     }
     if (prepare_write_env->prepare_buf)
     {
@@ -643,54 +371,45 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
     switch (event)
     {
     case ESP_GATTS_REG_EVT:
-        ESP_LOGI(GATTS_TAG, "REGISTER_APP_EVT, status %d, app_id %d\n", param->reg.status, param->reg.app_id);
+        ESP_LOGI(gatts_tag, "REGISTER_APP_EVT, status %d, app_id %d\n", param->reg.status, param->reg.app_id);
         gl_profile_tab[PROFILE_A_APP_ID].service_id.is_primary = true;
         gl_profile_tab[PROFILE_A_APP_ID].service_id.id.inst_id = 0x00;
         gl_profile_tab[PROFILE_A_APP_ID].service_id.id.uuid.len = ESP_UUID_LEN_16;
         gl_profile_tab[PROFILE_A_APP_ID].service_id.id.uuid.uuid.uuid16 = GATTS_SERVICE_UUID_TEST_A;
 
-        //update van
-//        char deviceName[30]="Moding_";
- //        uint8_t mac[6];
- //        char r[20];
- //        esp_read_mac(mac, ESP_MAC_BT);
- //        HexToStr(r,mac, 6);
- //        strcat(deviceName,r);
- //        printf("devieName=%s\r\n", deviceName);
- //        esp_err_t set_dev_name_ret = esp_ble_gap_set_device_name(deviceName); //设置设备名称
-        /****************************************/
 
         esp_err_t set_dev_name_ret = esp_ble_gap_set_device_name(TEST_DEVICE_NAME); //设置设备名称
         if (set_dev_name_ret)
         {
-            ESP_LOGE(GATTS_TAG, "set device name failed, error code = %x", set_dev_name_ret);
+            ESP_LOGE(gatts_tag, "set device name failed, error code = %x", set_dev_name_ret);
         }
 #ifdef CONFIG_SET_RAW_ADV_DATA
         esp_err_t raw_adv_ret = esp_ble_gap_config_adv_data_raw(raw_adv_data, sizeof(raw_adv_data));
         if (raw_adv_ret)
         {
-            ESP_LOGE(GATTS_TAG, "config raw adv data failed, error code = %x ", raw_adv_ret);
+            ESP_LOGE(gatts_tag, "config raw adv data failed, error code = %x ", raw_adv_ret);
         }
         adv_config_done |= adv_config_flag;
         esp_err_t raw_scan_ret = esp_ble_gap_config_scan_rsp_data_raw(raw_scan_rsp_data, sizeof(raw_scan_rsp_data));
         if (raw_scan_ret)
         {
-            ESP_LOGE(GATTS_TAG, "config raw scan rsp data failed, error code = %x", raw_scan_ret);
+            ESP_LOGE(gatts_tag, "config raw scan rsp data failed, error code = %x", raw_scan_ret);
         }
         adv_config_done |= scan_rsp_config_flag;
 #else
+        getdeviceinfo();
         //配置广播数据
         esp_err_t ret = esp_ble_gap_config_adv_data(&adv_data);
         if (ret)
         {
-            ESP_LOGE(GATTS_TAG, "config adv data failed, error code = %x", ret);
+            ESP_LOGE(gatts_tag, "config adv data failed, error code = %x", ret);
         }
         adv_config_done |= adv_config_flag;
         //配置扫描响应数据
         ret = esp_ble_gap_config_adv_data(&scan_rsp_data);
         if (ret)
         {
-            ESP_LOGE(GATTS_TAG, "config scan response data failed, error code = %x", ret);
+            ESP_LOGE(gatts_tag, "config scan response data failed, error code = %x", ret);
         }
         adv_config_done |= scan_rsp_config_flag;
 
@@ -699,7 +418,7 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
         break;
     case ESP_GATTS_READ_EVT:
     {
-        ESP_LOGI(GATTS_TAG, "GATT_READ_EVT, conn_id %d, trans_id %d, handle %d\n", param->read.conn_id, param->read.trans_id, param->read.handle);
+        ESP_LOGI(gatts_tag, "GATT_READ_EVT, conn_id %d, trans_id %d, handle %d\n", param->read.conn_id, param->read.trans_id, param->read.handle);
         esp_gatt_rsp_t rsp;
         memset(&rsp, 0, sizeof(esp_gatt_rsp_t));
 		getdeviceinfo();
@@ -712,403 +431,80 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
         {
              rsp.attr_value.value[t] = device_info[t];
         }
-        //rsp.attr_value.value[3] = 0xef;
         esp_ble_gatts_send_response(gatts_if, param->read.conn_id, param->read.trans_id,
                                     ESP_GATT_OK, &rsp);
         break;
     }
     case ESP_GATTS_WRITE_EVT:
     {
-        ESP_LOGI(GATTS_TAG, "GATT_WRITE_EVT, conn_id %d, trans_id %d, handle %d\n", param->write.conn_id, param->write.trans_id, param->write.handle);
+        ESP_LOGI(gatts_tag, "GATT_WRITE_EVT, conn_id %d, trans_id %d, handle %d\n", param->write.conn_id, param->write.trans_id, param->write.handle);
         write_id = param->write.handle;
         esp_log_buffer_hex("receive data", receive_buffer, strlen((char *)receive_buffer));
         printf("run  here \n");
         if (!param->write.is_prep)
         {
-            ESP_LOGI(GATTS_TAG, "GATT_WRITE_EVT, value len %d, value :", param->write.len);
-            //esp_log_buffer_hex("receive data.....", param->write.value, param->write.len);
-            //将接收到的数据发送出去
-            //rec_data = param->write.len;
+            ESP_LOGI(gatts_tag, "GATT_WRITE_EVT, value len %d, value :", param->write.len);
             if (param->write.len == 2 && (param->write.value[0] == 0x01) && param->write.value[2] == 0x00)
             {
-                printf("notidy data......\r\n");
+            	ESP_LOGW(gatts_tag,"notidy data......");
             }
             else
             {
                 if (param->write.value[param->write.len - 1] != 0x55)
                 {
-                    //数据没有接收完
                     strcat((char *)receive_buffer, (char *)param->write.value);
                 }
                 else
                 {
-                    //数据接收完
-                	//2020/10/27
-                    //update yuqiang
-                    //strcat((char *)receive_buffer, (char *)param->write.value);
                     uint16_t len=param->write.len;
                     for(int l=0;l<len;l++)
                     {
                     	receive_buffer[l]=*(param->write.value+l);
                     }
-                    //esp_log_buffer_hex("receive data", receive_buffer, strlen((char *)receive_buffer));
-                    //int i = strlen((char *)receive_buffer);
 
-					//update yuqiang
                     esp_log_buffer_hex("receive data", receive_buffer, len);
                     int i=len;
-                    ESP_LOGI(GATTS_TAG, "receive_buffer len= %d", i);
+                    ESP_LOGI(gatts_tag, "receive_buffer len= %d", i);
                     /********************************************/
 
                     if (receive_buffer[0] == 0x55 && receive_buffer[1] == 0xfa && receive_buffer[i - 1] == 0x55 && receive_buffer[i - 2] == 0xfa)
                     {
-                        printf("data is prefect\r\n");
-                        //心跳数据
-                        if (receive_buffer[3] == 0x04)
+                        if (receive_buffer[3] == 0x01)
                         {
-#ifndef on_off
-//				 esp_timer_stop(periodic_timer_moding);
+                        	wifi_config_t wifi_config;
+                        	bzero(&wifi_config, sizeof(wifi_config_t));
+							int j = 4 + receive_buffer[4] + 1;
+							memset(wifi_ssid_first,0,sizeof(wifi_ssid_first));
+							memset(wifi_pssd_first,0,sizeof(wifi_pssd_first));
+							memcpy(wifi_ssid_first, receive_buffer + 5, receive_buffer[4]);
+							memcpy(wifi_pssd_first, receive_buffer + 5 + receive_buffer[4] + 1, receive_buffer[j]);
+							ESP_LOGW(gatts_tag,"wifi_ssid_first_receive:%s", wifi_ssid_first);
+							ESP_LOGW(gatts_tag,"wifi_pssd_first_receive:%s", wifi_pssd_first);
 
-#endif
-                            esp_timer_stop(periodic_timer);
-                            ESP_LOGW(MY_TAG,"heart data ");
-                            /********************************************/
-                            //update van pull_ring
-                            getdeviceinfo();
-                            esp_ble_gap_config_adv_data(&adv_data);//图片完成后广播
-                            /********************************************/
-                            time_count = 0;                                         //收到心跳数据，计数清零
-                            ble_senddata(receive_buffer);                           //心跳数据直接发送出去即可
-							memset((char *)receive_buffer, 0, 512);
-                            ESP_LOGI(GATTS_TAG, "open timer");
-                           	esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
-                        }
-                        //获取设备信息
-                        else if (receive_buffer[3] == 0x03)
-                        {
-#ifndef on_off
-//				 esp_timer_stop(periodic_timer_moding);
-#endif
-                            esp_timer_stop(periodic_timer);
-                            ESP_LOGI(GATTS_TAG, "return device info");
-							// unsigned char total;
-                            // spi_flash_read(info_page * 4096, &total, sizeof(unsigned char));
-                            // if (total == 0xff)
-                            //     total = 0;
-                            // ESP_LOGI(GATTS_TAG, "total=%d", total);
-                            // remian_total = 11534336 - total * picture_cap * 4096;
-                            // device_info[6] = (unsigned char)((remian_total & 0xff000000) >> 8 >> 8 >> 8);
-                            // device_info[7] = (unsigned char)((remian_total & 0xff0000) >> 8 >> 8);
-                            // device_info[8] = (unsigned char)((remian_total & 0xff00) >> 8);
-                            // device_info[9] = (unsigned char)(remian_total & 0xff);
-                            // device_info[10] = total;
-                            // device_info[11] = isconnected;
-                            getdeviceinfo();
-                            ble_senddata(device_info);
-                            esp_log_buffer_hex("device_info", device_info, 14);
-                            ESP_LOGI(GATTS_TAG, "open timer");
-                            esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
-                        }
-                        //下载数据
-                        // else
-                        else if (receive_buffer[3] == 0x05)
-                        {
-#ifndef on_off
-//				 esp_timer_stop(periodic_timer_moding);
-#endif
-                            esp_timer_stop(periodic_timer);
-                            ESP_LOGI(GATTS_TAG, "delete picture");
-                            xEventGroupSetBits(EventGroupHandler, CLEAR_BIT);
-                            ble_senddata(receive_buffer);
-                            ESP_LOGI(GATTS_TAG, "open timer");
-                            esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
-                        }
-                        else if (receive_buffer[3] == 0x06)
-                        {
-#ifndef on_off
-//				 esp_timer_stop(periodic_timer_moding);
-#endif
-                            esp_timer_stop(periodic_timer);
-                            ESP_LOGI(GATTS_TAG, "read picture");
-                            xEventGroupSetBits(EventGroupHandler, READ_BIT);
-                            ble_senddata(receive_buffer);
-                            ESP_LOGI(GATTS_TAG, "read data");
-                        }
-                        else if (receive_buffer[3] == 0x01)
-                        {
-#ifndef on_off
-//				 esp_timer_stop(periodic_timer_moding);
-#endif
-                        	 esp_timer_stop(periodic_timer);
-							 printf("wifi_config......\r\n");
-							 memcpy(current_data.wifi_ssid, receive_buffer + 5, receive_buffer[4]);
-							 int j = 4 + receive_buffer[4] + 1;
-							 memcpy(current_data.wifi_pssd, receive_buffer + 5 + receive_buffer[4] + 1, receive_buffer[j]);
-							 spi_flash_write(info_page*4096,&current_data,sizeof(current_data));
-							 ble_senddata(receive_buffer);
-							 ESP_LOGW(my_tag,"go to sleep");
-							 esp_deep_sleep_start();
-
-//							esp_timer_stop(periodic_timer);
-//							ESP_LOGW(MY_TAG,"wifi_connect......");
-
-//							wifi_config_t wifi_config;
-//							bzero(&wifi_config, sizeof(wifi_config_t));
-//							memcpy(wifi_config.sta.ssid, receive_buffer + 5, receive_buffer[4]);
-//						   //memcpy(ssid, receive_buffer + 5, receive_buffer[4]);
-//							printf("/*************wifi_config.sta.ssid/password*********************/\n");
-//							printf("ssid=%s\r\n", wifi_config.sta.ssid); //17
-//							int j = 4 + receive_buffer[4] + 1;
-//							memcpy(wifi_config.sta.password, receive_buffer + 5 + receive_buffer[4] + 1, receive_buffer[j]);
-//							//memcpy(pssd, receive_buffer + 5 + receive_buffer[4] + 1, receive_buffer[j]);
-//							printf("pssd=%s\r\n", wifi_config.sta.password);
-//							ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
-//							esp_wifi_disconnect();
-//							esp_wifi_connect();
-
-							//update van
-//							ESP_LOGW(MY_TAG,"/*******************receive_buf****************************/");
-//							int j = 4 + receive_buffer[4] + 1;
-//							memset(wifi_ssid_first,0,sizeof(wifi_ssid_first));
-//							memset(wifi_pssd_first,0,sizeof(wifi_pssd_first));
-//							memcpy(wifi_ssid_first, receive_buffer + 5, receive_buffer[4]);
-//							ESP_LOGW(MY_TAG,"wifi_ssid_first=%s", wifi_ssid_first);
-//							memcpy(wifi_pssd_first, receive_buffer + 5 + receive_buffer[4] + 1, receive_buffer[j]);
-//							ESP_LOGW(MY_TAG,"wifi_pssd_first=%s", wifi_pssd_first);
-//							if(strcmp(wifi_ssid_first,wifi_ssid_is_empty)&&strcmp(wifi_pssd_first,wifi_pssd_is_empty)&&(strcmp(wifi_ssid_tmp,wifi_ssid_first)||strcmp(wifi_pssd_tmp,wifi_pssd_first)))
-//							{
-//								strcpy(wifi_ssid_tmp, wifi_ssid_first);
-//								strcpy(wifi_pssd_tmp, wifi_pssd_first);
-//								ESP_LOGW(MY_TAG,"wifi_ssid_tmp=%s",wifi_ssid_tmp);
-//								ESP_LOGW(MY_TAG,"wifi_pssd_tmmp=%s",wifi_pssd_tmp);
-//								if(strcmp(wifi_ssid_cache,wifi_ssid_tmp)||strcmp(wifi_pssd_cache, wifi_pssd_tmp))
-//								{
-//									wifi_config_t wifi_config;
-//									bzero(&wifi_config, sizeof(wifi_config_t));
-//									//需要再更改一下代码
-//									strcpy((char *)wifi_config.sta.ssid,wifi_ssid_tmp);
-//									strcpy((char *)wifi_config.sta.password,wifi_pssd_tmp);
-////									memcpy(wifi_config.sta.ssid, receive_buffer + 5, receive_buffer[4]);
-////									memcpy(wifi_config.sta.password, receive_buffer + 5 + receive_buffer[4] + 1, receive_buffer[j]);
-//									ESP_LOGW(MY_TAG,"ssid=%s", wifi_config.sta.ssid);
-//									ESP_LOGW(MY_TAG,"pssd=%s", wifi_config.sta.password);
-//									ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
-//									esp_wifi_disconnect();
-//									esp_wifi_connect();
-//									strcpy(wifi_ssid_cache, wifi_ssid_tmp);
-//									strcpy(wifi_pssd_cache, wifi_pssd_tmp);
-//									ESP_LOGW(MY_TAG,"wifi_ssid_cache=%s",wifi_ssid_cache);
-//									ESP_LOGW(MY_TAG,"wifi_pssd_cache=%s",wifi_pssd_cache);
-//								}
-//							}
-//							/**********************************************/
-//							 ble_senddata(receive_buffer);
-//							 ESP_LOGI(GATTS_TAG, "open timer");
-//					         esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
-                        }
-                        else if (receive_buffer[3] == 0x02)
-                        {
-#ifndef on_off
-//				 esp_timer_stop(periodic_timer_moding);
-#endif
-                            esp_timer_stop(periodic_timer);
-                            ESP_LOGI(GATTS_TAG, "httpdownload");
-//                            char filenum = receive_buffer[4]; //下载文件个数
-                            int download_len = receive_buffer[5];
-                            int file_name_len = receive_buffer[6];
-                            ESP_LOGI(GATTS_TAG, "download_len= %d", download_len);
-                            ESP_LOGW(MY_TAG, "file_name_len= %d", file_name_len);
-							  /*
-							memset(download_url, 0, 100);
-                            memcpy(download_url, receive_buffer + 6, download_len);
-                            download_url[download_len] = 0;
-                            memcpy(file_name, (char *)(receive_buffer + 6 + download_len + 1), receive_buffer[6 + download_len]);
-
-                            if (isconnected == 1)
-                            {
-                                ESP_LOGI(GATTS_TAG, "setbits");
-                                xEventGroupSetBits(EventGroupHandler, DOWNLOAD_BIT);
-                            }
-                            else
-                            {
-                                ESP_LOGI(GATTS_TAG, "wifi not connect");
-                                xEventGroupClearBits(EventGroupHandler, DOWNLOAD_BIT);
-                            }
-							*/
-
-							//update van
-                            memset(download_url_cache, 0, 200);
-                            url_length=download_len;
-                            memcpy(download_url_cache, receive_buffer + 6, download_len);
-                            ESP_LOGW(MY_TAG, "download_url_cache= %s", download_url_cache);
-                            ESP_LOGW(MY_TAG, "download_url= %s", download_url);
-							if((strcmp(download_url,download_url_cache) && url_state<2) && download_len>0)
+							if(strcmp((char *)wifi_config.sta.ssid,wifi_ssid_first)&&strcmp((char *)wifi_config.sta.password,wifi_pssd_first)&&isconnected==0)
 							{
-								memset(download_url, 0, 200);
-								memcpy(download_url, receive_buffer + 6, download_len);
-								download_url[download_len] = 0;
-								memset(file_name, 0, 40);
-								memcpy(file_name, (char *)(receive_buffer + 6 + download_len + 1), receive_buffer[6 + download_len]);
-								ESP_LOGW(MY_TAG, "file_name= %s", file_name);
-								if (isconnected == 1)
-								{
-									ESP_LOGI(GATTS_TAG, "setbits");
-									xEventGroupSetBits(EventGroupHandler, DOWNLOAD_BIT);
-								}
-								else
-								{
-									ESP_LOGI(GATTS_TAG, "wifi not connect");
-									xEventGroupClearBits(EventGroupHandler, DOWNLOAD_BIT);
-								}
+								strcpy((char *)wifi_config.sta.ssid,wifi_ssid_first);
+								strcpy((char *)wifi_config.sta.password,wifi_pssd_first);
+								strcpy(current_data.wifi_ssid,(char *)wifi_config.sta.ssid);
+								strcpy(current_data.wifi_pssd,(char *)wifi_config.sta.password);
+								updated_data_to_flash();
+								ESP_LOGW(gatts_tag,"current_data.wifi_ssid:%s", current_data.wifi_ssid);
+								ESP_LOGW(gatts_tag,"current_data.wifi_pssd:%s", current_data.wifi_pssd);
+								ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
+								esp_wifi_disconnect();
+								esp_wifi_connect();
 							}
-							else
-							{
-							    getdeviceinfo();
-							    esp_ble_gap_config_adv_data(&adv_data);//图片完成后广播
-							}
-							/*******************************************************/
-                            ble_senddata(receive_buffer); //将收到的数据返回给微信小程序
-                        }
-
-                        else if (receive_buffer[3] ==  0x07)
-                        {//display picture what you want
-#ifdef on_off
-                        	esp_timer_stop(periodic_timer);
-                        	char pic_name[40];
-                        	memset(pic_name, 0, 40);
-                        	int  pic_name_length=receive_buffer[4];
-                        	memcpy(pic_name, receive_buffer + 5, pic_name_length);
-                        	ESP_LOGW(MY_TAG,"the picture what you want to display is %s",pic_name);
 							ble_senddata(receive_buffer);
-							int ret=search_in_flash(pic_name,0x07,134400);
-							ESP_LOGW(MY_TAG, "search_in_flash(pic_name,0x07,134400)=%d",ret);
-                            ESP_LOGW(MY_TAG, "open timer");
-                           	esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
-#endif
-                        }
-                        else if(receive_buffer[3] == 0x08)
-                        {
-#ifdef on_off
-                        	esp_timer_stop(periodic_timer);
-                        	//是否轮询显示图片
-                        	pic_is_loop_display=receive_buffer[4];
-//                        	ESP_LOGW(MY_TAG,"pic_is_loop_display=%d",pic_is_loop_display);
-							getdeviceinfo();
-//							sf_WriteBuffer(&pic_is_loop_display, info_page * 4096+ 81*50, sizeof(unsigned char));
-							esp_ble_gap_config_adv_data(&adv_data);//图片完成后广播
-							spi_flash_read(info_page * 4096,&flag,4096);
-							if(flag[1]==0xaa&&flag[5]==0xaa)
+							if(isconnected==1)
 							{
-								flag[2]=0x11;
-								flag[3]=receive_buffer[5];//睡眠时长
-								flag[4]=receive_buffer[6];//启动时长
-								spi_flash_erase_sector(info_page);
-								spi_flash_write(info_page * 4096, &flag, 4096);
-								spi_flash_read(info_page * 4096,&flag,4096);
-								printf("flag 1~5 :\n");
-								for(int i=1;i<=5;i++)
-								{
-									ESP_LOGW(MY_TAG,"flag[%d]=%x",i,flag[i]);
-								}
-							}
-							loop_display_picture(receive_buffer[4]);
-							if(receive_buffer[4] == 0x00)
-							{
-								ESP_LOGI(GATTS_TAG, "open timer");
-								esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
-							}
-							else
-							{
-								ESP_LOGW(MY_TAG,"display_finished open timer 4s");
-								esp_timer_start_periodic(periodic_timer, 4*1000 * 1000);
-							}
-#endif
-                        }
-                        else if (receive_buffer[3] == 0x09)
-                        {//delete picture what you want
-#ifdef on_off
-                        	esp_timer_stop(periodic_timer);
-							unsigned char temp;
-							unsigned char picnum;
-							unsigned char picture_num_real; //实际图片数量
-							char temp_name[40];
-							char pic_name[40];
-							memset(pic_name, 0, 40);
-							memset(temp_name, 0, 40);
-							int pic_name_length=receive_buffer[4];
-							ble_senddata(receive_buffer);
-							memcpy(pic_name, receive_buffer + 5, pic_name_length);
-							ESP_LOGW(MY_TAG,"pic_name=%s",pic_name);
-							spi_flash_read(info_page * 4096, &picnum, sizeof(unsigned char));
-							spi_flash_read(info_reboot_times * 4096, &picture_num_real, sizeof(unsigned char));
-							printf("picture_num_real=%d\n",picture_num_real);
-							if(picnum==0xff)
-							{
-								picnum=0;
-							}
-							ESP_LOGW(MY_TAG,"picnum=%d",picnum);
-							unsigned char i=1;
-							if(i>picnum&&picnum==0)
-							{
-								ESP_LOGW(MY_TAG,"flash no pic to let you delete");
-							}
-							else
-							{
-								for (; i <= picnum; i++)
-								{
-									spi_flash_read(info_page * 4096 + i * 50, temp_name, 40);
-									if(i>picture_num_real)
-									{
-										temp_name[39]='\0';
-										ESP_LOGW(MY_TAG,"temp_name=%s",temp_file_name);
-										if(strcmp(temp_name,temp_file_name)==0)
-										{
-											ESP_LOGW(MY_TAG,"no picture what you want to delete");
-											break;
-										}
-									}
-									if (strcmp(temp_name, pic_name) == 0) //有重名文件
-									{
-										ESP_LOGW(MY_TAG,"find picture what you want to delete: %s",temp_name);
-										spi_flash_read(info_page * 4096 + i * 50 + 40, &temp, sizeof(unsigned char));
-										ESP_LOGW(MY_TAG,"first read temp=%d i=%d",temp,i);
-										if(temp==0)
-										{
-											ESP_LOGE(MY_TAG,"picture which is %d in flash was deleted already ",i);
-											break;
-										}
-										unsigned char temp=0;
-										sf_WriteBuffer(&temp, info_page * 4096 + i * 50 + 40, sizeof(unsigned char));
-										spi_flash_read(info_page * 4096 + i * 50 + 40, &temp, sizeof(unsigned char));
-										ESP_LOGW(MY_TAG,"after delete pic read temp=%d,i=%d",temp,i);
-										break;
-									}
-								}
+								wifi_config_page=1;
 								getdeviceinfo();
-								esp_ble_gap_config_adv_data(&adv_data);//图片完成后广播
+								esp_ble_gap_config_adv_data(&adv_data);
+								check_wifi_httpdownload_pic('0');
+//								sleep_for_next_wakeup();
 							}
-							ESP_LOGI(MY_TAG,"CLEAR ONE PIC: esp_ble_gap_config_adv_data(&adv_data)");
-							ESP_LOGI(GATTS_TAG, "open timer");
-							esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
-#endif
                         }
-                        else if(receive_buffer[3]==0x10)
-                        {//get and set time from network
-                        	union longstrvalue{
-								char time_sec[4];
-								long i;
-							}longstr;
-							longstr.time_sec[0]=receive_buffer[5];
-							longstr.time_sec[1]=receive_buffer[6];
-							longstr.time_sec[2]=receive_buffer[7];
-							longstr.time_sec[3]=receive_buffer[8];
-							ESP_LOGW(MY_TAG,"time_sec[0]=%x,time_sec[1]=%x,time_sec[2]=%x,time_sec[3]=%x ",longstr.time_sec[0],longstr.time_sec[1],longstr.time_sec[2],longstr.time_sec[3]);
-							ESP_LOGW(MY_TAG,"longstr.i=%ld",longstr.i);
-//							update_set_time(longstr.i);
-                        	ESP_LOGI(GATTS_TAG, "open timer");
-                        	esp_timer_start_periodic(periodic_timer,60*1000 * 1000); //设置定时器的定时周期为60s
-                        }
-                        memset((char *)receive_buffer, 0, 512);
+
                     }
                 }
             }
@@ -1122,7 +518,7 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
                 {
                     if (a_property & ESP_GATT_CHAR_PROP_BIT_NOTIFY)
                     {
-                        ESP_LOGI(GATTS_TAG, "notify enable");
+                        ESP_LOGI(gatts_tag, "notify enable");
                         memset((char *)receive_buffer, 0, 512);
                         //通知消息发送的数据
                         // uint8_t notify_data[3] = {0x55, 0x02, 0x55};
@@ -1144,7 +540,7 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
                 {
                     if (a_property & ESP_GATT_CHAR_PROP_BIT_INDICATE)
                     {
-                        ESP_LOGI(GATTS_TAG, "indicate enable");
+                        ESP_LOGI(gatts_tag, "indicate enable");
                         uint8_t indicate_data[15];
                         for (int i = 0; i < sizeof(indicate_data); ++i)
                         {
@@ -1157,12 +553,12 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
                 }
                 else if (descr_value == 0x0000)
                 {
-                    ESP_LOGI(GATTS_TAG, "notify/indicate disable ");
+                    ESP_LOGI(gatts_tag, "notify/indicate disable ");
                 }
                 else
                 {
-                    ESP_LOGE(GATTS_TAG, "unknown descr value");
-                    esp_log_buffer_hex(GATTS_TAG, param->write.value, param->write.len);
+                    ESP_LOGE(gatts_tag, "unknown descr value");
+                    esp_log_buffer_hex(gatts_tag, param->write.value, param->write.len);
                 }
             }
         }
@@ -1170,17 +566,17 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
         break;
     }
     case ESP_GATTS_EXEC_WRITE_EVT:
-        ESP_LOGI(GATTS_TAG, "ESP_GATTS_EXEC_WRITE_EVT");
+        ESP_LOGI(gatts_tag, "ESP_GATTS_EXEC_WRITE_EVT");
         esp_ble_gatts_send_response(gatts_if, param->write.conn_id, param->write.trans_id, ESP_GATT_OK, NULL);
         example_exec_write_event_env(&a_prepare_write_env, param);
         break;
     case ESP_GATTS_MTU_EVT:
-        ESP_LOGI(GATTS_TAG, "ESP_GATTS_MTU_EVT, MTU %d", param->mtu.mtu);
+        ESP_LOGI(gatts_tag, "ESP_GATTS_MTU_EVT, MTU %d", param->mtu.mtu);
         break;
     case ESP_GATTS_UNREG_EVT:
         break;
     case ESP_GATTS_CREATE_EVT:
-        ESP_LOGI(GATTS_TAG, "CREATE_SERVICE_EVT, status %d,  service_handle %d\n", param->create.status, param->create.service_handle);
+        ESP_LOGI(gatts_tag, "CREATE_SERVICE_EVT, status %d,  service_handle %d\n", param->create.status, param->create.service_handle);
         gl_profile_tab[PROFILE_A_APP_ID].service_handle = param->create.service_handle;
         gl_profile_tab[PROFILE_A_APP_ID].char_uuid.len = ESP_UUID_LEN_16;
         gl_profile_tab[PROFILE_A_APP_ID].char_uuid.uuid.uuid16 = GATTS_CHAR_UUID_TEST_A;
@@ -1194,7 +590,7 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
                                                         &gatts_demo_char1_val, NULL);
         if (add_char_ret)
         {
-            ESP_LOGE(GATTS_TAG, "add char failed, error code =%x", add_char_ret);
+            ESP_LOGE(gatts_tag, "add char failed, error code =%x", add_char_ret);
         }
         break;
     case ESP_GATTS_ADD_INCL_SRVC_EVT:
@@ -1204,7 +600,7 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
         uint16_t length = 0;
         const uint8_t *prf_char;
 
-        ESP_LOGI(GATTS_TAG, "ADD_CHAR_EVT, status %d,  attr_handle %d, service_handle %d\n",
+        ESP_LOGI(gatts_tag, "ADD_CHAR_EVT, status %d,  attr_handle %d, service_handle %d\n",
                  param->add_char.status, param->add_char.attr_handle, param->add_char.service_handle);
         gl_profile_tab[PROFILE_A_APP_ID].char_handle = param->add_char.attr_handle;
         gl_profile_tab[PROFILE_A_APP_ID].descr_uuid.len = ESP_UUID_LEN_16;
@@ -1212,30 +608,30 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
         esp_err_t get_attr_ret = esp_ble_gatts_get_attr_value(param->add_char.attr_handle, &length, &prf_char);
         if (get_attr_ret == ESP_FAIL)
         {
-            ESP_LOGE(GATTS_TAG, "ILLEGAL HANDLE");
+            ESP_LOGE(gatts_tag, "ILLEGAL HANDLE");
         }
-        ESP_LOGI(GATTS_TAG, "the gatts demo char length = %x\n", length);
+        ESP_LOGI(gatts_tag, "the gatts demo char length = %x\n", length);
         for (int i = 0; i < length; i++)
         {
-            ESP_LOGI(GATTS_TAG, "prf_char[%x] =%x\n", i, prf_char[i]);
+            ESP_LOGI(gatts_tag, "prf_char[%x] =%x\n", i, prf_char[i]);
         }
         esp_err_t add_descr_ret = esp_ble_gatts_add_char_descr(gl_profile_tab[PROFILE_A_APP_ID].service_handle, &gl_profile_tab[PROFILE_A_APP_ID].descr_uuid,
                                                                ESP_GATT_PERM_READ | ESP_GATT_PERM_WRITE, NULL, NULL);
         if (add_descr_ret)
         {
-            ESP_LOGE(GATTS_TAG, "add char descr failed, error code =%x", add_descr_ret);
+            ESP_LOGE(gatts_tag, "add char descr failed, error code =%x", add_descr_ret);
         }
         break;
     }
     case ESP_GATTS_ADD_CHAR_DESCR_EVT:
         gl_profile_tab[PROFILE_A_APP_ID].descr_handle = param->add_char_descr.attr_handle;
-        ESP_LOGI(GATTS_TAG, "ADD_DESCR_EVT, status %d, attr_handle %d, service_handle %d\n",
+        ESP_LOGI(gatts_tag, "ADD_DESCR_EVT, status %d, attr_handle %d, service_handle %d\n",
                  param->add_char_descr.status, param->add_char_descr.attr_handle, param->add_char_descr.service_handle);
         break;
     case ESP_GATTS_DELETE_EVT:
         break;
     case ESP_GATTS_START_EVT:
-        ESP_LOGI(GATTS_TAG, "SERVICE_START_EVT, status %d, service_handle %d\n",
+        ESP_LOGI(gatts_tag, "SERVICE_START_EVT, status %d, service_handle %d\n",
                  param->start.status, param->start.service_handle);
         break;
     case ESP_GATTS_STOP_EVT:
@@ -1251,7 +647,7 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
         conn_params.max_int = 0x20; // max_int = 0x20*1.25ms = 40ms
         conn_params.min_int = 0x10; // min_int = 0x10*1.25ms = 20ms
         conn_params.timeout = 400;  // timeout = 400*10ms = 4000ms
-        ESP_LOGI(GATTS_TAG, "ESP_GATTS_CONNECT_EVT, conn_id %d, remote %02x:%02x:%02x:%02x:%02x:%02x:",
+        ESP_LOGI(gatts_tag, "ESP_GATTS_CONNECT_EVT, conn_id %d, remote %02x:%02x:%02x:%02x:%02x:%02x:",
                  param->connect.conn_id,
                  param->connect.remote_bda[0], param->connect.remote_bda[1], param->connect.remote_bda[2],
                  param->connect.remote_bda[3], param->connect.remote_bda[4], param->connect.remote_bda[5]);
@@ -1262,14 +658,14 @@ static void gatts_profile_a_event_handler(esp_gatts_cb_event_t event, esp_gatt_i
         break;
     }
     case ESP_GATTS_DISCONNECT_EVT:
-        ESP_LOGI(GATTS_TAG, "ESP_GATTS_DISCONNECT_EVT, disconnect reason 0x%x", param->disconnect.reason);
+        ESP_LOGI(gatts_tag, "ESP_GATTS_DISCONNECT_EVT, disconnect reason 0x%x", param->disconnect.reason);
         esp_ble_gap_start_advertising(&adv_params);
         break;
     case ESP_GATTS_CONF_EVT:
-        ESP_LOGI(GATTS_TAG, "ESP_GATTS_CONF_EVT, status %d attr_handle %d", param->conf.status, param->conf.handle);
+        ESP_LOGI(gatts_tag, "ESP_GATTS_CONF_EVT, status %d attr_handle %d", param->conf.status, param->conf.handle);
         if (param->conf.status != ESP_GATT_OK)
         {
-            esp_log_buffer_hex(GATTS_TAG, param->conf.value, param->conf.len);
+            esp_log_buffer_hex(gatts_tag, param->conf.value, param->conf.len);
         }
         break;
     case ESP_GATTS_OPEN_EVT:
@@ -1293,7 +689,7 @@ static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_
         }
         else
         {
-            ESP_LOGI(GATTS_TAG, "Reg app failed, app_id %04x, status %d\n",
+            ESP_LOGI(gatts_tag, "Reg app failed, app_id %04x, status %d\n",
                      param->reg.app_id,
                      param->reg.status);
             return;
@@ -1329,7 +725,7 @@ void GattServers_Init(void)
     ret = esp_bt_controller_init(&bt_cfg);
     if (ret)
     {
-        ESP_LOGE(GATTS_TAG, "%s initialize controller failed: %s\n", __func__, esp_err_to_name(ret));
+        ESP_LOGE(gatts_tag, "%s initialize controller failed: %s\n", __func__, esp_err_to_name(ret));
         return;
     }
     /*使能蓝牙控制器：并工作在BLE模式
@@ -1342,35 +738,35 @@ void GattServers_Init(void)
     ret = esp_bt_controller_enable(ESP_BT_MODE_BLE);
     if (ret)
     {
-        ESP_LOGE(GATTS_TAG, "%s enable controller failed: %s\n", __func__, esp_err_to_name(ret));
+        ESP_LOGE(gatts_tag, "%s enable controller failed: %s\n", __func__, esp_err_to_name(ret));
         return;
     }
     //初始化蓝牙堆栈
     ret = esp_bluedroid_init();
     if (ret)
     {
-        ESP_LOGE(GATTS_TAG, "%s init bluetooth failed: %s\n", __func__, esp_err_to_name(ret));
+        ESP_LOGE(gatts_tag, "%s init bluetooth failed: %s\n", __func__, esp_err_to_name(ret));
         return;
     }
     //启用堆栈
     ret = esp_bluedroid_enable();
     if (ret)
     {
-        ESP_LOGE(GATTS_TAG, "%s enable bluetooth failed: %s\n", __func__, esp_err_to_name(ret));
+        ESP_LOGE(gatts_tag, "%s enable bluetooth failed: %s\n", __func__, esp_err_to_name(ret));
         return;
     }
     //注册GATTS事件处理程序
     ret = esp_ble_gatts_register_callback(gatts_event_handler);
     if (ret)
     {
-        ESP_LOGE(GATTS_TAG, "gatts register error, error code = %x", ret);
+        ESP_LOGE(gatts_tag, "gatts register error, error code = %x", ret);
         return;
     }
     //注册GAT事件处理程序
     ret = esp_ble_gap_register_callback(gap_event_handler);
     if (ret)
     {
-        ESP_LOGE(GATTS_TAG, "gap register error, error code = %x", ret);
+        ESP_LOGE(gatts_tag, "gap register error, error code = %x", ret);
         return;
     }
     //使用应用程序ID注册应用程序配置文件应用程序ID是用户分配的编号，用于标识每个配置文件。
@@ -1378,81 +774,33 @@ void GattServers_Init(void)
     ret = esp_ble_gatts_app_register(PROFILE_A_APP_ID);
     if (ret)
     {
-        ESP_LOGE(GATTS_TAG, "gatts app register error, error code = %x", ret);
+        ESP_LOGE(gatts_tag, "gatts app register error, error code = %x", ret);
         return;
     }
     esp_err_t local_mtu_ret = esp_ble_gatt_set_local_mtu(500);
     if (local_mtu_ret)
     {
-        ESP_LOGE(GATTS_TAG, "set local  MTU failed, error code = %x", local_mtu_ret);
+        ESP_LOGE(gatts_tag, "set local  MTU failed, error code = %x", local_mtu_ret);
     }
 }
-//void getdeviceinfo(void)
-//{
-//	analysis_data();
-//	device_info[0] = (unsigned char)(voltage&0xff);
-//	device_info[1] = (unsigned char)(voltage&0xff00)>>8;
-//	device_info[2] = isconnected;
-//	device_info[3] = current_data.pic_number;
-//	device_info[4] = (unsigned char)((current_data.remain_space & 0xff000000) >> 8 >> 8 >> 8);
-//    device_info[5] = (unsigned char)((current_data.remain_space & 0xff0000) >> 8 >> 8);
-//    device_info[6] = (unsigned char)((current_data.remain_space & 0xff00) >> 8);
-//    device_info[7] = (unsigned char)(current_data.remain_space & 0xff);
-//    device_info[8] = wifi_config_page;
-//}
+
 void getdeviceinfo(void)
 {
-//    unsigned char total;
-//    spi_flash_read(info_page * 4096, &total, sizeof(unsigned char));
-//    if (total == 0xff)
-//	{
-//		total = 0;
-//	}
-//    ESP_LOGI(GATTS_TAG, "total=%d", total);
-//    remian_total = 11534336 - total * picture_cap * 4096;
-//    device_info[6] = (unsigned char)((remian_total & 0xff000000) >> 8 >> 8 >> 8);
-//    device_info[7] = (unsigned char)((remian_total & 0xff0000) >> 8 >> 8);
-//    device_info[8] = (unsigned char)((remian_total & 0xff00) >> 8);
-//    device_info[9] = (unsigned char)(remian_total & 0xff);
-//    device_info[10] = total;
-//    device_info[11] = isconnected;
-    //update van
-#ifdef on_off
-    unsigned char delete_pic[total+1];
-    spi_flash_read(info_reboot_times * 4096, &delete_pic, sizeof(unsigned char));
-    if(delete_pic[0]==0xff)
-    {
-    	delete_pic[0]=0;
-    }
-    delete_pic[0]=0;//实际存在的图片数量
-    ESP_LOGW(MY_TAG,"---------");
-    ESP_LOGW(MY_TAG,"getdeviceinfo");
-    printf("total=%d\n",total);
-    for(unsigned char i=1;i<=total;i++)
-    {
-    	unsigned char temp;
-    	spi_flash_read(info_page * 4096 + i * 50 + 40, &temp, sizeof(unsigned char));
-    	if(temp!=i)
-    	{
-    		delete_pic[0]++;
-    	}
-    	delete_pic[i]=temp;
-    	ESP_LOGW(MY_TAG,"delete_pic[%d]=%x",i,temp);
-    }
-    delete_pic[0]=total-delete_pic[0];
-#endif
-//	remian_total = 11534336 -  delete_pic[0] * picture_cap * 4096;
-	device_info[2] = (unsigned char)((remian_total & 0xff000000) >> 8 >> 8 >> 8);
-    device_info[3] = (unsigned char)((remian_total & 0xff0000) >> 8 >> 8);
-    device_info[4] = (unsigned char)((remian_total & 0xff00) >> 8);
-    device_info[5] = (unsigned char)(remian_total & 0xff);
-//    device_info[6] =  delete_pic[0];
-    device_info[7] = isconnected;
-//    device_info[14] = pic_is_loop_display;
-//    sf_WriteBuffer(delete_pic, info_reboot_times * 4096,(total+1) * sizeof(unsigned char));
-    ESP_LOGE(GATTS_TAG, "picture number total=%d", device_info[6]);
-//    ESP_LOGW(MY_TAG,"picture number total location is in %d sector and first %d bytes", info_reboot_times,sizeof(unsigned char));
-//    ESP_LOGW(MY_TAG,"picture loop display(0 no ,1 yes) :%d",device_info[14]);
-//    ESP_LOGW(MY_TAG,"*********");
+	analysis_data();
+	device_info[0] = (unsigned char)((voltage & 0xff00) >> 8);
+	device_info[1] = (unsigned char)(voltage & 0xff);
+	device_info[2] = isconnected;
+	device_info[3] = current_data.pic_number;
+	device_info[4] = (unsigned char)((current_data.remain_space & 0xff000000) >> 8 >> 8 >> 8);
+    device_info[5] = (unsigned char)((current_data.remain_space & 0xff0000) >> 8 >> 8);
+    device_info[6] = (unsigned char)((current_data.remain_space & 0xff00) >> 8);
+    device_info[7] = (unsigned char)(current_data.remain_space & 0xff);
+    device_info[8] = wifi_config_page;
+//    for(unsigned char i=0;i<15;i++)
+//    {
+//    	ESP_LOGW(gatts_tag,"device[%d]=%x	",i,device_info[i]);
+//    }
+    printf("\n");
 }
-//周期定时器回调函数
+
+

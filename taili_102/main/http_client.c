@@ -1,9 +1,10 @@
 #include "http_client.h"
 
 
-int  low_power_state=-1;
-int config_wifi_state=-1;
-int  network_wrong_state=-1;
+static const char *http_tag = "http";
+int  low_power_state=0;
+int config_wifi_state=0;
+int  network_wrong_state=0;
 int  picname_times=0;
 char low_power_picname[20]="lowvol.bin";
 char network_wrong_picname[20]="networkerr.bin";
@@ -55,37 +56,36 @@ int http_test_task(char *dpwn_url)
 
     client = esp_http_client_init(&config);
 
-
     while(1)
     {
         esp_err_t err;
-        unsigned char http_client_open_failed_times=3;
-        while(http_client_open_failed_times)
-        {
+//        unsigned char http_client_open_failed_times=3;
+//        while(http_client_open_failed_times)
+//        {
         	if ((err = esp_http_client_open(client, 0)) != ESP_OK)
     		{
     			ESP_LOGE(http_tag, "Failed to open HTTP connection: %s", esp_err_to_name(err));
-    			http_client_open_failed_times--;
-    			if(http_client_open_failed_times==0)
-    			{
-    				ESP_LOGE(http_tag, "Failed to open an HTTP connection after three attempts");
-    				if(current_data.network_wrong_state==0)
-    				{
-    //					display_picture_temp(1,low_network_wifi_picture_page);
-    				}
-    				else
-    				{
-    					ESP_LOGE(http_tag,"flash no low_network_wifi_picture_page to display");
-    				}
-    				sleep_for_next_wakeup();
+//    			http_client_open_failed_times--;
+//    			if(http_client_open_failed_times==0)
+//    			{
+//    				ESP_LOGE(http_tag, "Failed to open an HTTP connection after three attempts");
+//    				if(current_data.network_wrong_state==0)
+//    				{
+//    					//			display picture network wrong
+//    				}
+//    				else
+//    				{
+//    					ESP_LOGE(http_tag,"flash no low_network_wifi_picture_page to display");
+//    				}
+//    				sleep_for_next_wakeup();
     				return 0;
-    			}
+//    			}
     		}
-    		else
-    		{
-    			break;
-    		}
-        }
+//    		else
+//    		{
+//    			break;
+//    		}
+//        }
 
 		printf("\n");
 		ESP_LOGE(http_tag, "start_download_data");
@@ -160,46 +160,35 @@ int http_test_task(char *dpwn_url)
 			memset(PICNAME,0,20);
 			memcpy(PICNAME,&config.url[strlen(current_data.server_add_to_downlo_pic)+18],12);
 			search_dis_pic();
-			memset(BUFFER,'\0',sector_size);
-			if(low_power_state==0||network_wrong_state==0||config_wifi_state==0)
+			if(low_power_state==1||network_wrong_state==1||config_wifi_state==1)
 			{
 				printf("\n");
 				ESP_LOGE(http_tag, "Start receiving data stream");
-				while (data_read_size > 0)
+				if(data_read_size<=sector_size)
 				{
-					read_len = esp_http_client_read(client, BUFFER, sector_size);
-					ESP_LOGE(http_tag, "read %d		read_len %d", bytes_read,read_len);
-					spi_flash_write((low_network_wifi_picture_page + picture_cap * picture_index) * 4096 + bytes_read * sector_size, BUFFER, read_len);
-					if(bytes_read==37)
-					{
-						 spi_flash_write((low_network_wifi_picture_page + picture_cap * picture_index) * 4096 + bytes_read * (sector_size/2), BUFFER, read_len);
-					}
-					bytes_read++;
-					data_read_size -= read_len;
+					read_len = esp_http_client_read(client, BUFFER, data_read_size);
+					ESP_LOGE(http_tag, "read_len %d", read_len);
+					sf_WriteBuffer((uint8_t*)BUFFER, (low_network_wifi_picture_page + picture_index) * 4096 + bytes_read * sector_size, read_len);
 				}
-				ESP_LOGE(http_tag, "read_times = %d", bytes_read);
-				ESP_LOGE(http_tag, "wrote low_network_wifi_picture_page_data to %d ",low_network_wifi_picture_page);
+				ESP_LOGE(http_tag, "wrote low_network_wifi_picture_page_data to %d sector ",(low_network_wifi_picture_page + picture_index));
 			}
 			else
 			{
+				printf("\n");
 				DK_ByT();
 				Write_CT(0x10);
-				printf("\n");
+				ESP_LOGE(http_tag,"start deep sleep: %lld us", esp_timer_get_time());
 				ESP_LOGE(http_tag, "Start receiving data stream");
 				while (data_read_size > 0)
 				{
 					read_len = esp_http_client_read(client, BUFFER, sector_size);
 					ESP_LOGE(http_tag, "read %d		read_len %d", bytes_read,read_len);
-	//				for(unsigned char i=0;i<read_len;i++)
-	//				{
-	//					printf("buffer[%d]=%x	",i,BUFFER[i]);
-	//				}
-	//				printf("\n");
 					Hal_UpGraghScreen3();
 					bytes_read++;
 					data_read_size -= read_len;
 				}
 				DK_RTflesh();
+				ESP_LOGE(http_tag,"start deep sleep: %lld us", esp_timer_get_time());
 				ESP_LOGE(http_tag, "read_times = %d", bytes_read);
 			}
 			if(esp_http_client_get_status_code(client)!=200)
@@ -208,11 +197,11 @@ int http_test_task(char *dpwn_url)
 				if(failed_times>2)
 				{
 					failed_times=0;
-					ESP_LOGE(my_tag,"picture download failed (more than twice)");
+					ESP_LOGE(http_tag,"picture download failed (more than twice)");
 					esp_http_client_close(client);
 					esp_http_client_cleanup(client);
 					ESP_LOGE(http_tag, "close http(s) cleanup client done");
-	//					display_picture_temp(1,low_network_wifi_picture_page);
+					//			display picture network wrong
 					sleep_for_next_wakeup();
 				}
 			}
@@ -255,24 +244,23 @@ void search_dis_pic()
 	int value;
 	char temp[4];
 
-
   	if(strcmp(PICNAME,low_power_picname)==0)
   	{
   		picture_index=0;
-  		low_power_state=0;
-  		current_data.low_power_state=0;
+  		low_power_state=1;
+  		current_data.low_power_state=1;
   	}
   	else if(strcmp(PICNAME,network_wrong_picname)==0)
 	{
 		picture_index=1;
-		network_wrong_state=0;
-		current_data.network_wrong_state=0;
+		network_wrong_state=1;
+		current_data.network_wrong_state=1;
 	}
   	else if(strcmp(PICNAME,config_wifi_picname)==0)
   	{
   		picture_index=2;
-  		config_wifi_state=0;
-  		current_data.config_wifi_state=0;
+  		config_wifi_state=1;
+  		current_data.config_wifi_state=1;
   	}
   	else
   	{
@@ -383,40 +371,4 @@ void search_dis_pic()
 			sleep_for_next_wakeup();
 		}
   	}
-//  	updated_esp_time();
-//  	updated_data_to_flash();
-//  	analysis_data();
- }
-
-
-//    	if(flag==0)
-//    	{
-//			unsigned char i;
-//    		char temp_name[20];
-//			for (i = 0; i < current_data.pic_number; i++)
-//			{
-//				spi_flash_read(info_pic_name + i * 20, temp_name, 20);
-//				if (strcmp((char *)temp_name, current_data.pic_name) == 0)
-//				{
-//					ESP_LOGW(http_tag, "find same name picture");
-//					picture_index = i;
-//					break;
-//				}
-//			}
-//			if(i==current_data.pic_number)
-//			{
-//				picture_index=current_data.pic_number;
-//				sf_WriteBuffer((uint8_t *)picname, info_pic_name + current_data.pic_number * 20, 20);
-//				current_data.pic_number++;
-//			}
-//			picture_page_index=picture_page;
-//    	}
-//    	else
-//    	{
-//    		picture_page_index=low_network_wifi_picture_page;
-//    		ESP_LOGE(http_tag, "start_earse flash size");
-//			spi_flash_erase_range((picture_page_index + picture_cap * picture_index) * 4096, picture_cap * 4096); //Çå³ýflashÄÚ´æ
-//			ESP_LOGE(http_tag, "earse flash end");
-//    		sf_WriteBuffer((uint8_t *)picname, info_pic_name_for_err + picture_index * 20, 20);
-//    	}
-//    	udpated_data_to_flash();
+}

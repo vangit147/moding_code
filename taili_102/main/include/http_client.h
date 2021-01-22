@@ -13,9 +13,11 @@
 #include "nvs.h"
 #include "nvs_flash.h"
 #include "esp_wifi.h"
-#include "data_flash.h"
+#include "calendar.h"
 
 char wakeup_cause;
+
+//char BUFFER_temp[15][4096];
 char BUFFER[4096];
 char PICNAME[20];
 unsigned char picture_index;

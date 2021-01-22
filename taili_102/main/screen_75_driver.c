@@ -225,8 +225,6 @@ void LDK_init(void)
     WRITEDK(21,0);
 	delay_ms(100);
 	DK_Init();
-	//×ÀÇ©°´¼ü
-//	esp_sleep_enable_ext1_wakeup(1ULL<<0x0e,ESP_EXT1_WAKEUP_ALL_LOW);
 }
 
 void DK_ByT(void)
@@ -504,7 +502,6 @@ void delay_ms(uint16_t value)
 {
 	vTaskDelay(value / portTICK_RATE_MS);
 }
-static const char *TAG = "EPD";
 
 void Hal_UpGraghScreen1(unsigned char * buffer1,unsigned char * buffer2,unsigned int num)
 {
@@ -588,7 +585,7 @@ void Hal_UpGraghScreen2(unsigned char * buffer1,unsigned char * buffer2,unsigned
 	}
 }
 
-//update van
+
 extern char BUFFER[4096];
 void Hal_UpGraghScreen3()
 {
@@ -596,39 +593,41 @@ void Hal_UpGraghScreen3()
 	unsigned char j,k;
 	unsigned char tempvalue;
 	unsigned char tempMono,temp;
-	for(l=0;l<4096;l++)
-	{
-		tempMono=BUFFER[l];
-		for(k=0;k<2;k++)
+
+		for(l=0;l<4096;l++)
 		{
-			tempvalue=0xFF;
-			for(j=0;j<2;j++)
+			tempMono=BUFFER[l];
+			for(k=0;k<2;k++)
 			{
-				temp=tempMono;
-				temp&=0xC0;
-				if(j==0)
+				tempvalue=0xFF;
+				for(j=0;j<2;j++)
 				{
-					if(temp==0x00||temp==0x40)
-						temp|=0x0F;
-					if(temp==0xC0)
-						temp=(temp|0xFF)&0x3F;
-				 }
-				 else
-				 {
-					if(temp==0x00)
-						temp|=0xF0;
-					if(temp==0x40)
-						temp|=0xF4;
-					if(temp==0xC0)
-						temp=(temp|0xFF)&0xF3;
-				 }
-				tempMono<<=2;
-				tempvalue&=temp;
+					temp=tempMono;
+					temp&=0xC0;
+					if(j==0)
+					{
+						if(temp==0x00||temp==0x40)
+							temp|=0x0F;
+						if(temp==0xC0)
+							temp=(temp|0xFF)&0x3F;
+					 }
+					 else
+					 {
+						if(temp==0x00)
+							temp|=0xF0;
+						if(temp==0x40)
+							temp|=0xF4;
+						if(temp==0xC0)
+							temp=(temp|0xFF)&0xF3;
+					 }
+					tempMono<<=2;
+					tempvalue&=temp;
+				}
+				Write_DT(tempvalue);
 			}
-			Write_DT(tempvalue);
-		}
 	}
 }
+
 void Hal_UpGraghScreen4()
 {
 	unsigned int l;

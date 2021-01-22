@@ -17,12 +17,12 @@
 #include "esp_gap_ble_api.h"
 #include "esp_gatts_api.h"
 #include "esp_log.h"
-#define MY_TAG	"moding"
-//#include "gatts_server.h"
 #include "gatts_server.h"
+#include "calendar.h"
+#define wifi_tag	"wifi"
 extern esp_ble_adv_data_t adv_data;
 unsigned char isconnected = 0;
-/* ÏµÍ³ÊÂ¼þÑ­»·´¦Àíº¯Êý */
+/* ÏµÍ³ï¿½Â¼ï¿½Ñ­ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
 // static esp_err_t example_net_event_handler(void *ctx, system_event_t *event)
 // {
 //     wifi_mode_t mode;
@@ -52,44 +52,40 @@ unsigned char isconnected = 0;
 // }
 static void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data)
 {
-	static int retry_num = 0; /* ¼ÇÂ¼wifiÖØÁ¬´ÎÊý */
-	/* ÏµÍ³ÊÂ¼þÎªWiFiÊÂ¼þ */
+	static int retry_num = 0; /* ï¿½ï¿½Â¼wifiï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
+	/* ÏµÍ³ï¿½Â¼ï¿½ÎªWiFiï¿½Â¼ï¿½ */
     if (event_base == WIFI_EVENT)
     {
-        if (event_id == WIFI_EVENT_STA_START) /* ÊÂ¼þidÎªSTA¿ªÊ¼ */
+        if (event_id == WIFI_EVENT_STA_START) /* ï¿½Â¼ï¿½idÎªSTAï¿½ï¿½Ê¼ */
         {
-        	//esp_wifi_connect();
-        	//update van
         	esp_err_t  err_code;
         	err_code=esp_wifi_connect();
-        	ESP_LOGW(MY_TAG,"moding_err_code=%d\n",err_code);
+        	ESP_LOGW(wifi_tag,"wifi_connect_err_code=%d\n",err_code);
         	/********************************/
         }
-        else if (event_id == WIFI_EVENT_STA_DISCONNECTED) /* ÊÂ¼þidÎªÊ§È¥STAÁ¬½Ó */
+        else if (event_id == WIFI_EVENT_STA_DISCONNECTED) /* ï¿½Â¼ï¿½idÎªÊ§È¥STAï¿½ï¿½ï¿½ï¿½ */
         {
-        	//esp_wifi_connect();
-        	//update van;
         	esp_err_t  err_code;
         	err_code=esp_wifi_connect();
-        	ESP_LOGW(MY_TAG,"err_code=%d",err_code);
+        	ESP_LOGW(wifi_tag,"wifi_connect_code=%d",err_code);
         	/*****************************/
         	isconnected = 0;
         	retry_num++;
-        	ESP_LOGW(MY_TAG,"retry to connect to the AP %d times. ", retry_num);
-            if (retry_num > 10) /* WiFiÖØÁ¬´ÎÊý´óÓÚ10 ³¬Ê±*/
+        	ESP_LOGW(wifi_tag,"retry to connect to the AP %d times. ", retry_num);
+            if (retry_num > 10) /* WiFiï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½10 ï¿½ï¿½Ê±*/
             {
                 retry_num = 0;
-                ESP_LOGW(MY_TAG,"WIFI CONNECTED FAIL ....RECONNCET.....");
+                ESP_LOGW(wifi_tag,"WIFI CONNECTED FAIL ....RECONNCET.....");
             }
         }
     }
-    /* ÏµÍ³ÊÂ¼þÎªipµØÖ·ÊÂ¼þ£¬ÇÒÊÂ¼þidÎª³É¹¦»ñÈ¡ipµØÖ· */
+    /* ÏµÍ³ï¿½Â¼ï¿½Îªipï¿½ï¿½Ö·ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Â¼ï¿½idÎªï¿½É¹ï¿½ï¿½ï¿½È¡ipï¿½ï¿½Ö· */
     else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP)
     {
-        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data; /* »ñÈ¡IPµØÖ·ÐÅÏ¢*/
-        ESP_LOGW(MY_TAG,"WIFI CONNECTED SUCCESS.....");
-        ESP_LOGW(MY_TAG,"got IP:%d.%d.%d.%d", IP2STR(&event->ip_info.ip)); /* ´òÓ¡ipµØÖ·*/
-        /* WiFiÖØÁ¬´ÎÊýÇåÁã */
+        ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data; /* ï¿½ï¿½È¡IPï¿½ï¿½Ö·ï¿½ï¿½Ï¢*/
+        ESP_LOGW(wifi_tag,"WIFI CONNECTED SUCCESS.....");
+        ESP_LOGW(wifi_tag,"got IP:%d.%d.%d.%d", IP2STR(&event->ip_info.ip)); /* ï¿½ï¿½Ó¡ipï¿½ï¿½Ö·*/
+        /* WiFiï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ */
         retry_num = 0;
         isconnected = 1;
         getdeviceinfo();
@@ -98,43 +94,45 @@ static void event_handler(void *arg, esp_event_base_t event_base, int32_t event_
 }
 void wifi_init_sta(void)
 {
-    tcpip_adapter_init(); //³õÊ¼»¯TCP/IPÐ­ÒéÕ»
-    /* ´´½¨Ä¬ÈÏÊÂ¼þÑ­»·,*/
+    tcpip_adapter_init(); //ï¿½ï¿½Ê¼ï¿½ï¿½TCP/IPÐ­ï¿½ï¿½Õ»
+    /* ï¿½ï¿½ï¿½ï¿½Ä¬ï¿½ï¿½ï¿½Â¼ï¿½Ñ­ï¿½ï¿½,*/
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     // ESP_ERROR_CHECK(esp_event_loop_init(example_net_event_handler, NULL));
     //upate van
-    /*ÏÂÃæÁ½ÐÐ´ø´úÂëÓÃÀ´³õÊ¼»¯WIFI»·¾³ */
+    /*ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½WIFIï¿½ï¿½ï¿½ï¿½ */
     /**************************/
-    /* Ê¹ÓÃWIFI_INIT_CONFIG_DEFAULT() À´»ñÈ¡Ò»¸öÄ¬ÈÏµÄwifiÅäÖÃ²ÎÊý½á¹¹Ìå±äÁ¿*/
+    /* Ê¹ï¿½ï¿½WIFI_INIT_CONFIG_DEFAULT() ï¿½ï¿½ï¿½ï¿½È¡Ò»ï¿½ï¿½Ä¬ï¿½Ïµï¿½wifiï¿½ï¿½ï¿½Ã²ï¿½ï¿½ï¿½ï¿½á¹¹ï¿½ï¿½ï¿½ï¿½ï¿½*/
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    /* ¸ù¾Ýcfg²ÎÊý³õÊ¼»¯wifiÁ¬½ÓËùÐèÒªµÄ×ÊÔ´ */
+    /* ï¿½ï¿½ï¿½ï¿½cfgï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê¼ï¿½ï¿½wifiï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½Ô´ */
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
-    //ºöÂÔÖ®Ç°´æ´¢µÄwifi ssidºÍpwd
-//    esp_wifi_restore();
+    //ï¿½ï¿½ï¿½ï¿½Ö®Ç°ï¿½æ´¢ï¿½ï¿½wifi ssidï¿½ï¿½pwd
+    esp_wifi_restore();
     //update van
-    // ÅäÖÃSTA Ä£Ê½£¬ÅäÖÃwifiÃû³ÆÒÔ¼°ÃÜÂë
-    // Ê¹ÓÃESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config))º¯ÊýÊÇÅäÖÃÉúÐ§
+    // ï¿½ï¿½ï¿½ï¿½STA Ä£Ê½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½wifiï¿½ï¿½ï¿½ï¿½ï¿½Ô¼ï¿½ï¿½ï¿½ï¿½ï¿½
+    // Ê¹ï¿½ï¿½ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config))ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ð§
 	/**************************/
-     wifi_config_t wifi_config = {
-         .sta = {
-             .ssid = "Van",
-             .password = "van18595487020"},
-     };
-     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
-    /* ½«ÊÂ¼þ´¦Àí³ÌÐò×¢²áµ½ÏµÍ³Ä¬ÈÏÊÂ¼þÑ­»·£¬·Ö±ðÊÇWiFiÊÂ¼þ¡¢IPµØÖ·ÊÂ¼þ¼°smartconfigÊÂ¼þ */
+//     wifi_config_t wifi_config = {
+//         .sta = {
+////             .ssid = current_data.wifi_ssid,
+////             .password = current_data.wifi_pssd},
+//			  .ssid = "moding_wifi",
+//			             .password = "modingtech.com"},
+//     };
+//     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config));
+    /* ï¿½ï¿½ï¿½Â¼ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×¢ï¿½áµ½ÏµÍ³Ä¬ï¿½ï¿½ï¿½Â¼ï¿½Ñ­ï¿½ï¿½ï¿½ï¿½ï¿½Ö±ï¿½ï¿½ï¿½WiFiï¿½Â¼ï¿½ï¿½ï¿½IPï¿½ï¿½Ö·ï¿½Â¼ï¿½ï¿½ï¿½smartconfigï¿½Â¼ï¿½ */
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &event_handler, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &event_handler, NULL));
     //update van
-    //ÉèÖÃµ±Ç°¹¤×÷Ä£Ê½¿ÉÒÔÊ¹ÓÃesp_wifi_get_mode()»ñÈ¡µ±Ç°¹¤×÷Ä£Ê½
-    //esp¼´¿É´¦ÔÚAPÄ£Ê½£¬Ò²¿É´¦ÔÚSTAÄ£Ê½£¬Ò²¿ÉSTA+APÄ£Ê½
+    //ï¿½ï¿½ï¿½Ãµï¿½Ç°ï¿½ï¿½ï¿½ï¿½Ä£Ê½ï¿½ï¿½ï¿½ï¿½Ê¹ï¿½ï¿½esp_wifi_get_mode()ï¿½ï¿½È¡ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½Ä£Ê½
+    //espï¿½ï¿½ï¿½É´ï¿½ï¿½ï¿½APÄ£Ê½ï¿½ï¿½Ò²ï¿½É´ï¿½ï¿½ï¿½STAÄ£Ê½ï¿½ï¿½Ò²ï¿½ï¿½STA+APÄ£Ê½
     /*****************************/
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     //update van
-    /*Æô¶¯wifi¹¦ÄÜ£¬Ê¹ÎÒÃÇµÄÅäÖÃÈ«²¿ÉúÐ§*/
+    /*ï¿½ï¿½ï¿½ï¿½wifiï¿½ï¿½ï¿½Ü£ï¿½Ê¹ï¿½ï¿½ï¿½Çµï¿½ï¿½ï¿½ï¿½ï¿½È«ï¿½ï¿½ï¿½ï¿½Ð§*/
 	/****************************************/
     ESP_ERROR_CHECK(esp_wifi_start());
     //esp_wifi_set_ps(WIFI_PS_MAX_MODEM);
 //    esp_wifi_set_auto_connect();
 
-    ESP_LOGW(MY_TAG,"wifi_init_sta finished. \n");
+    ESP_LOGW(wifi_tag,"wifi_init_sta finished. \n");
 }

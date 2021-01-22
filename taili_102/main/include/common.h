@@ -17,12 +17,6 @@
 #include "cJSON.h"
 #include "esp_spi_flash.h"
 
-
-
-#define my_tag		"desk_calender"
-#define http_tag	"http_client"
-#define timer_tag 	"timer"
-
 #define sector_size 4096
 
 struct tm *p;
@@ -53,8 +47,8 @@ struct my_data
 	char pic_number;
 	/*
 	 * low_power_state:
-	 * 			0	没有此图片
-	 * 			1	存在此图片
+	 * 			-1	没有此图片
+	 * 			0	存在此图片
 	 */
 	char low_power_state;
 	/*
@@ -77,8 +71,8 @@ struct my_data
 	char server_add_get_down_pic[50];
 	/*
 	 * network_wrong_state :
-	 * 			0	没有此图片
-	 * 			1	存在此图片
+	 * 			-1	没有此图片
+	 * 			0	存在此图片
 	 */
 	char network_wrong_state;
 	/*
