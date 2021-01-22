@@ -1,0 +1,5 @@
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/ulp_main/CMakeFiles/ulp_main_ld_script.dir
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/ulp_main/CMakeFiles/ulp_main.dir
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/ulp_main/CMakeFiles/build.dir
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/ulp_main/CMakeFiles/edit_cache.dir
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/ulp_main/CMakeFiles/rebuild_cache.dir

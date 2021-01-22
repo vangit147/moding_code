@@ -1,0 +1,13 @@
+# Target labels
+ ulp_main
+# Source files and their labels
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/CMakeFiles/ulp_main
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/CMakeFiles/ulp_main.rule
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/CMakeFiles/ulp_main-complete.rule
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/ulp_main-prefix/src/ulp_main-stamp/ulp_main-install.rule
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/ulp_main-prefix/src/ulp_main-stamp/ulp_main-mkdir.rule
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/ulp_main-prefix/src/ulp_main-stamp/ulp_main-download.rule
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/ulp_main-prefix/src/ulp_main-stamp/ulp_main-update.rule
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/ulp_main-prefix/src/ulp_main-stamp/ulp_main-patch.rule
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/ulp_main-prefix/src/ulp_main-stamp/ulp_main-configure.rule
+D:/ESP32/ULP/ulp_v3/ulp_adc/build/esp-idf/main/ulp_main-prefix/src/ulp_main-stamp/ulp_main-build.rule

@@ -1,0 +1,76 @@
+
+Memory Configuration
+
+Name             Origin             Length             Attributes
+ram              0x00000000         0x00000800         rw
+*default*        0x00000000         0xffffffff
+
+Linker script and memory map
+
+LOAD CMakeFiles/ulp_main.dir/main.ulp.S.obj
+LOAD CMakeFiles/ulp_main.dir/i2c.ulp.S.obj
+LOAD CMakeFiles/ulp_main.dir/stack.ulp.S.obj
+LOAD CMakeFiles/ulp_main.dir/i2c-util.ulp.S.obj
+LOAD CMakeFiles/ulp_main.dir/i2c_mpu.ulp.S.obj
+
+.text           0x00000000      0x748 load address 0x0000000c
+ *(.text)
+ .text          0x00000000      0x148 CMakeFiles/ulp_main.dir/main.ulp.S.obj
+                0x00000000                entry
+                0x00000034                comparex
+                0x000000b8                exit
+                0x000000bc                wake_up
+ .text          0x00000148      0x190 CMakeFiles/ulp_main.dir/i2c.ulp.S.obj
+                0x00000148                i2c_start_cond
+                0x000001a8                i2c_stop_cond
+                0x000001e0                i2c_write_bit
+                0x00000214                i2c_read_bit
+                0x00000240                i2c_write_byte
+                0x00000280                i2c_read_byte
+ .text          0x000002d8        0x0 CMakeFiles/ulp_main.dir/stack.ulp.S.obj
+ .text          0x000002d8      0x140 CMakeFiles/ulp_main.dir/i2c-util.ulp.S.obj
+                0x00000328                write8
+                0x00000370                read_intro
+ .text          0x00000418      0x330 CMakeFiles/ulp_main.dir/i2c_mpu.ulp.S.obj
+                0x00000418                init_mpu
+
+.data           0x00000748        0x0 load address 0x00000754
+                0x00000748                . = ALIGN (0x4)
+ *(.data)
+ .data          0x00000748        0x0 CMakeFiles/ulp_main.dir/main.ulp.S.obj
+ .data          0x00000748        0x0 CMakeFiles/ulp_main.dir/i2c.ulp.S.obj
+ .data          0x00000748        0x0 CMakeFiles/ulp_main.dir/stack.ulp.S.obj
+ .data          0x00000748        0x0 CMakeFiles/ulp_main.dir/i2c-util.ulp.S.obj
+ .data          0x00000748        0x0 CMakeFiles/ulp_main.dir/i2c_mpu.ulp.S.obj
+
+.bss            0x00000748       0xa4 load address 0x00000754
+                0x00000748                . = ALIGN (0x4)
+ *(.bss)
+ .bss           0x00000748       0x78 CMakeFiles/ulp_main.dir/main.ulp.S.obj
+                0x00000748                moving_times
+                0x0000074c                sysrun_times
+                0x00000750                move_flags
+                0x00000754                compare_times
+                0x00000758                stack
+                0x000007bc                stackEnd
+ .bss           0x000007c0        0x8 CMakeFiles/ulp_main.dir/i2c.ulp.S.obj
+ .bss           0x000007c8        0x0 CMakeFiles/ulp_main.dir/stack.ulp.S.obj
+ .bss           0x000007c8        0x0 CMakeFiles/ulp_main.dir/i2c-util.ulp.S.obj
+ .bss           0x000007c8       0x24 CMakeFiles/ulp_main.dir/i2c_mpu.ulp.S.obj
+                0x000007c8                ac
+                0x000007cc                ay
+                0x000007d0                az
+                0x000007d4                acl
+                0x000007d8                azl
+                0x000007dc                p_ax
+                0x000007e0                p_az
+                0x000007e4                m_ax
+                0x000007e8                m_az
+
+.header         0x000007ec        0xc load address 0x00000000
+                0x000007ec        0x4 LONG 0x706c75
+                0x000007f0        0x2 SHORT 0xc LOADADDR (.text)
+                0x000007f2        0x2 SHORT 0x748 SIZEOF (.text)
+                0x000007f4        0x2 SHORT 0x0 SIZEOF (.data)
+                0x000007f6        0x2 SHORT 0xa4 SIZEOF (.bss)
+OUTPUT(ulp_main elf32-esp32ulp)
